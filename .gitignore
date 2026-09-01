@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# generated auth artifacts
+.nintendo-auth.json
+*-auth.json
+
+# database (user data)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.db.backup
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

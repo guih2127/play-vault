@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  --bg: #0f0f18;
+  --bg-2: #16161f;
+  --surface: #1c1c27;
+  --surface-2: #242430;
+  --border: #2c2c39;
+  --border-soft: #21212c;
+  --text: #f1f1f5;
+  --text-dim: #9696a8;
+  --text-mut: #62626f;
+  --accent: #f5326e;
+  --accent-2: #ff5c8e;
+  --accent-glow: rgba(245, 50, 110, 0.3);
+  --accent-soft: rgba(245, 50, 110, 0.14);
+  --gold: #efbf46;
+  --green: #57b978;
+  --plat: #8fb3e6;
+  --radius: 5px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  --serif: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+
+  font-family: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+}
+
+img {
+  display: block;
+}
+
+::selection {
+  background: var(--accent-glow);
+}
