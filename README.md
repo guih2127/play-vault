@@ -1,74 +1,102 @@
 # PlayVault
 
-App pessoal para sincronizar e exibir os jogos que joguei no PS5, Steam e Switch 2 — com tempo de jogo, troféus/conquistas, platinas e notas.
+Personal app to sync and browse the games you've played on PS5, Steam and Switch 2 — with
+trophies/achievements, platinums, ratings, a backlog and playtime.
 
-- **Backend:** NestJS (ESM) + SQLite nativo do Node (`node:sqlite`) — porta **3000**
-- **Frontend:** React + Vite + TypeScript — porta **5173** (proxy `/api` → `localhost:3000`)
+- **Backend:** NestJS (ESM) + Node's native SQLite (`node:sqlite`) — port **3000**
+- **Frontend:** React + Vite + TypeScript — port **5173** (proxy `/api` → `localhost:3000`)
 
-## Pré-requisitos
+## Prerequisites
 
-- **Node.js 24+** (o backend usa o `node:sqlite`, que é experimental e exige Node 24)
-- Um arquivo `backend/.env` preenchido (ver abaixo)
+- **Node.js 24+** (the backend uses `node:sqlite`, which is experimental and requires Node 24)
+- A filled-in `backend/.env` (see below)
+- A Google OAuth Client ID (for "Sign in with Google") — create one in the Google Cloud Console
+  and add `http://localhost:5173` as an authorized JavaScript origin
 
-## Configuração (`backend/.env`)
+## Configuration (`backend/.env`)
+
+Copy `backend/.env.example` and fill it in. App-level values:
 
 ```env
 PORT=3000
-PSN_NPSSO=            # token NPSSO da PSN (expira ~2 meses)
-STEAM_API_KEY=        # Steam Web API key
-STEAM_ID=             # SteamID64
-NINTENDO_SESSION_TOKEN=  # opcional (Switch via nxapi, bloqueado)
-RAWG_API_KEY=         # RAWG (busca/autocomplete e metadados)
+
+# App-level Steam Web API key (used to read any signed-in user's public library)
+STEAM_API_KEY=
+# RAWG key (game search / metadata)
+RAWG_API_KEY=
+
+# Auth
+APP_URL=http://localhost:5173
+GOOGLE_CLIENT_ID=
+JWT_SECRET=        # 48+ random bytes, base64
+ENCRYPTION_KEY=    # exactly 32 random bytes, base64
 ```
 
-## Rodando
-
-Abra **dois terminais** na raiz do projeto.
-
-**Terminal 1 — backend:**
+Generate the secrets:
 
 ```powershell
-cd backend
-npm install      # só na primeira vez
-npm run start:dev
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"  # JWT_SECRET
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # ENCRYPTION_KEY
 ```
 
-**Terminal 2 — frontend:**
+> PSN and Steam accounts are connected **per user inside the app** (Profile screen), not in `.env` —
+> PSN via an NPSSO token (encrypted at rest), Steam via "Sign in with Steam" (OpenID).
+
+## Running
+
+The quickest way (Windows) — from the project root:
 
 ```powershell
-cd frontend
-npm install      # só na primeira vez
-npm run dev
+.\playvault.cmd
 ```
 
-Depois abra **http://localhost:5173** no navegador.
+This installs dependencies on first run, starts backend + frontend, and opens the browser once the
+backend is ready. `Ctrl+C` stops both.
 
-> Na primeira vez que abrir, clique em **Sincronizar** para puxar os dados da PSN/Steam e salvar o snapshot no SQLite (`backend/playvault.db`). Sincronizações levam ~9s; depois disso a biblioteca carrega instantânea do snapshot.
+Or run each side manually in two terminals:
 
-## Scripts úteis
+```powershell
+cd backend  && npm install && npm run start:dev   # terminal 1
+cd frontend && npm install && npm run dev          # terminal 2
+```
 
-| Onde | Comando | O que faz |
-|------|---------|-----------|
-| backend | `npm run start:dev` | Backend em watch mode |
-| backend | `npm run build` | Build de produção |
-| backend | `npm run start:prod` | Roda o build (`dist/main`) |
-| backend | `npm test` | Testes (vitest) |
-| frontend | `npm run dev` | Dev server (Vite) |
-| frontend | `npm run build` | Build de produção |
-| frontend | `npm run preview` | Preview do build |
+Then open **http://localhost:5173**.
 
-## API (principais endpoints)
+> First time: sign in (Google or email/password), open **Profile**, connect PSN/Steam, then hit
+> **Sync** to pull your data and store a snapshot in SQLite (`backend/playvault.db`).
 
-- `GET /api/providers` — status dos providers conectados
-- `GET /api/games` — biblioteca (do snapshot)
-- `POST /api/sync` — sincroniza providers e regrava o snapshot
-- `GET /api/search?q=` — busca de jogos (RAWG) p/ cadastro manual
-- `GET /api/meta?key=&title=` — metadados do jogo (RAWG)
-- `POST /api/manual` / `DELETE /api/manual/:id` — cadastro manual (Switch 2)
-- `POST /api/games/beaten` — marca jogo como zerado
-- `POST /api/games/rating` — nota (0.5–5 estrelas)
+## Useful scripts
 
-## Notas
+| Where    | Command             | What it does                          |
+| -------- | ------------------- | ------------------------------------- |
+| backend  | `npm run start:dev` | Backend in watch mode                 |
+| backend  | `npm run build`     | Production build                      |
+| backend  | `npm run start:prod`| Run the build (`dist/main`)           |
+| backend  | `npm test`          | Tests (vitest)                        |
+| backend  | `npm run format`    | Prettier                              |
+| frontend | `npm run dev`       | Dev server (Vite)                     |
+| frontend | `npm run build`     | Production build                      |
+| frontend | `npm run format`    | Prettier                              |
 
-- **Switch 2:** a API automática (nxapi) está bloqueada pela Nintendo — jogos do Switch entram por **cadastro manual**.
-- O banco `backend/playvault.db` guarda snapshots, flags de zerado, notas e cadastros manuais — sobrevive entre syncs.
+## API (main endpoints)
+
+Auth (public): `POST /api/auth/google`, `POST /api/auth/register`, `POST /api/auth/login`,
+`POST /api/auth/logout`, `GET /api/auth/me`.
+
+Everything below requires an authenticated session (cookie):
+
+- `GET /api/profile` — current user + connected providers
+- `POST /api/profile/psn` — connect PSN (NPSSO) · `GET /api/profile/steam/login` — connect Steam (OpenID)
+- `GET /api/dashboard` — dashboard summary · `GET /api/games` — library (from snapshot)
+- `POST /api/sync` — sync the signed-in user's providers and rewrite the snapshot
+- `GET /api/trophies` — individual trophies · `GET /api/backlog` — backlog
+- `POST /api/games/beaten` — mark as beaten · `POST /api/games/rating` — rate (0.5–5 stars)
+- `POST /api/manual` / `DELETE /api/manual/:id` — manual entries (Switch 2)
+- `GET /api/search?q=` — game search (RAWG) · `GET /api/meta?key=&title=` — game metadata (RAWG)
+
+## Notes
+
+- **Switch 2:** the automatic API (nxapi) is blocked by Nintendo, so Switch games are added
+  **manually**.
+- The `backend/playvault.db` database stores users, per-user connections, snapshots, beaten flags,
+  ratings and manual entries — it survives between syncs.
