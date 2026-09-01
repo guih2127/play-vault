@@ -10,6 +10,7 @@ import {
 import type { AggregatedGame, Dashboard, RecentTrophy } from './types'
 import { GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
+import { ActivityTab } from './ActivityChart'
 import { formatDate, formatNumber } from './format'
 
 const TROPHIES_PER_PAGE = 10
@@ -36,7 +37,7 @@ export function TrophiesPage({
   const [trophies, setTrophies] = useState<RecentTrophy[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<'trophies' | 'completions'>('trophies')
+  const [tab, setTab] = useState<'trophies' | 'completions' | 'activity'>('trophies')
   const [games, setGames] = useState<Record<string, AggregatedGame>>({})
   const [selGame, setSelGame] = useState<AggregatedGame | null>(null)
   const [selTrophy, setSelTrophy] = useState<RecentTrophy | null>(null)
@@ -170,6 +171,12 @@ export function TrophiesPage({
               >
                 Platinums &amp; 100%
               </button>
+              <button
+                className={`wtab ${tab === 'activity' ? 'wtab-active' : ''}`}
+                onClick={() => setTab('activity')}
+              >
+                Activity
+              </button>
             </div>
           )
           return tab === 'trophies' ? (
@@ -183,7 +190,7 @@ export function TrophiesPage({
               sorts={trophySorts}
               render={(t, i) => <TrophyRow key={i} t={t} onOpen={() => setSelTrophy(t)} />}
             />
-          ) : (
+          ) : tab === 'completions' ? (
             <PagedWidget
               tabs={tabsNode}
               title="Platinums & 100%"
@@ -245,6 +252,8 @@ export function TrophiesPage({
                 )
               }}
             />
+          ) : (
+            <ActivityTab tabs={tabsNode} trophies={trophies} />
           )
         })()
       )}
