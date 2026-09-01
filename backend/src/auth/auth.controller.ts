@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common
 import type { Response } from 'express';
 import { AuthService } from './auth.service.js';
 import { AuthGuard, type AuthedRequest } from './auth.guard.js';
+import { GoogleDto, LoginDto, RegisterDto } from './auth.dto.js';
 import type { DbUser } from '../db/database.service.js';
 
 const SESSION_COOKIE = 'pv_session';
@@ -22,27 +23,21 @@ export class AuthController {
   }
 
   @Post('google')
-  async google(@Body() body: { credential?: string }, @Res({ passthrough: true }) res: Response) {
+  async google(@Body() body: GoogleDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.loginWithGoogle(body.credential ?? '');
     this.setSession(res, user);
     return this.auth.toPublic(user);
   }
 
   @Post('register')
-  async register(
-    @Body() body: { email?: string; password?: string; name?: string },
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async register(@Body() body: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.register(body.email ?? '', body.password ?? '', body.name);
     this.setSession(res, user);
     return this.auth.toPublic(user);
   }
 
   @Post('login')
-  async login(
-    @Body() body: { email?: string; password?: string },
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.loginWithPassword(body.email ?? '', body.password ?? '');
     this.setSession(res, user);
     return this.auth.toPublic(user);

@@ -16,6 +16,7 @@ import axios from 'axios';
 import { AuthGuard, type AuthedRequest } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { CryptoService } from './crypto.service.js';
+import { ConnectPsnDto } from './auth.dto.js';
 import { DatabaseService } from '../db/database.service.js';
 
 const STEAM_OPENID = 'https://steamcommunity.com/openid/login';
@@ -45,7 +46,7 @@ export class ProfileController {
   }
 
   @Post('psn')
-  connectPsn(@Req() req: AuthedRequest, @Body() body: { npsso?: string }) {
+  connectPsn(@Req() req: AuthedRequest, @Body() body: ConnectPsnDto) {
     const npsso = (body.npsso ?? '').trim();
     if (!npsso) throw new BadRequestException('Enter your PSN NPSSO token');
     this.db.setPsnNpsso(req.user.id, this.crypto.encrypt(npsso));
