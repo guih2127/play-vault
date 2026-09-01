@@ -664,6 +664,391 @@
   color: var(--accent-2);
 }
 
+.chart-total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.chart-total-num {
+  font-size: 26px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--accent-2);
+}
+
+.chart-total-cap {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.chart {
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-plot {
+  position: relative;
+  width: 100%;
+  height: 210px;
+}
+
+.chart-svg {
+  display: block;
+  overflow: visible;
+  animation: chart-fade-in 0.28s ease both;
+}
+
+@keyframes chart-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chart-skeleton {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    100deg,
+    var(--surface-2) 30%,
+    rgba(255, 255, 255, 0.05) 50%,
+    var(--surface-2) 70%
+  );
+  background-size: 200% 100%;
+  animation: chart-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes chart-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.chart-area-stop-top {
+  stop-color: var(--accent);
+  stop-opacity: 0.34;
+}
+.chart-area-stop-bottom {
+  stop-color: var(--accent);
+  stop-opacity: 0;
+}
+.chart-line-stop-start {
+  stop-color: var(--accent);
+}
+.chart-line-stop-end {
+  stop-color: var(--accent-2);
+}
+
+.chart-grid-line {
+  stroke: var(--border-soft);
+  stroke-width: 1;
+}
+
+.chart-y-label {
+  fill: var(--text-mut);
+  font-size: 10px;
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.chart-area {
+  fill: url(#chart-area-grad);
+  stroke: none;
+}
+
+.chart-line {
+  fill: none;
+  stroke: url(#chart-line-grad);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  filter: drop-shadow(0 1px 6px var(--accent-glow));
+}
+
+.chart-crosshair {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.chart-dot-active {
+  fill: var(--accent-2);
+  stroke: var(--bg-2);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+.chart-tooltip {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 12px));
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 130px;
+  max-width: 220px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 30;
+}
+
+.chart-tooltip-below {
+  transform: translate(-50%, 12px);
+}
+
+.chart-tooltip-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.chart-tooltip-val {
+  font-size: 15px;
+  font-weight: 800;
+  font-family: var(--font-display);
+  color: var(--accent-2);
+  line-height: 1;
+}
+
+.chart-tooltip-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.chart-tooltip-games {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+  /* Cap the height so a period with many games doesn't blow past the screen. */
+  max-height: 180px;
+  overflow-y: auto;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+
+.chart-tooltip-games::-webkit-scrollbar {
+  width: 6px;
+}
+.chart-tooltip-games::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.chart-tooltip-games::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chart-tt-game {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.chart-tt-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.chart-tt-icon-blank {
+  display: inline-block;
+}
+
+.chart-tt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.chart-tt-cnt {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chart-daterange {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 16px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.chart-date-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-mut);
+}
+
+.chart-date-field + .chart-date-field {
+  border-left: 1px solid var(--border);
+}
+
+.chart-date-field input {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: normal;
+  color-scheme: dark;
+  cursor: pointer;
+}
+
+.chart-date-field input:focus {
+  outline: none;
+}
+
+.chart-date-field:focus-within {
+  color: var(--accent-2);
+}
+
+.chart-date-field input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.5;
+  filter: invert(0.5);
+  transition: opacity 0.15s ease;
+}
+
+.chart-date-field input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+.chart-axis {
+  position: relative;
+  height: 14px;
+  margin-top: 8px;
+}
+
+.chart-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 10px;
+  color: var(--text-mut);
+  white-space: nowrap;
+}
+
+.chart-top {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.chart-top-head {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.chart-top-head span {
+  color: var(--text-mut);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.chart-top-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 24px;
+}
+
+.chart-top-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 4px;
+  border-radius: var(--radius);
+}
+
+.chart-top-item:hover {
+  background: var(--surface-2);
+}
+
+.chart-top-cnt {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--accent-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-top-rank {
+  flex-shrink: 0;
+  width: 16px;
+  text-align: right;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-mut);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-top-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.chart-top-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.chart-top-others .chart-top-name {
+  color: var(--text-mut);
+  font-style: italic;
+}
+
 /* ---------- priority ---------- */
 
 .prio-tag {
@@ -821,7 +1206,8 @@
   border: 1px solid var(--border-soft);
   border-radius: var(--radius);
   padding: 0;
-  overflow: hidden;
+  /* Not clipped, so the chart tooltip can overflow the card. */
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
@@ -837,6 +1223,8 @@
   padding: 8px 16px;
   background: linear-gradient(180deg, rgba(245, 50, 110, 0.2), rgba(245, 50, 110, 0.07));
   border-bottom: 1px solid var(--border-soft);
+  /* Keep the rounded top corners now that the widget itself isn't clipping. */
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 
 .widget-title {

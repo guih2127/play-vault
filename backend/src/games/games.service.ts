@@ -320,11 +320,36 @@ export class GamesService {
 
   /** All individual trophies stored so far, most recent first. */
   getAllTrophies(): RecentTrophy[] {
+    // Store titles can be localized (e.g. WUCHANG's Chinese "明末：渊虚之羽"); resolve
+    // each to the aggregated game's canonical (English) title so it's consistent everywhere.
+    const { resolveTitle } = this.titleResolver(this.getGames());
     return this.db
       .getAllStoredTrophies<RecentTrophy>()
-      .map((t) => ({ ...t, provider: t.provider ?? 'psn' }))
+      .map((t) => ({ ...t, provider: t.provider ?? 'psn', gameTitle: resolveTitle(t.gameTitle) }))
       .filter((t) => t.earnedAt)
       .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''));
+  }
+
+  /**
+   * Build resolvers that map a stored trophy's (possibly localized) game title to the
+   * aggregated game's canonical key/title. Store titles can be in a different language
+   * than the game title, so we index each game's trophy-set title names too — not just
+   * its own title.
+   */
+  private titleResolver(games: AggregatedGame[]) {
+    const keyByTitle = new Map<string, string>();
+    for (const g of games) {
+      keyByTitle.set(mergeKey(g.title), g.key);
+      for (const s of g.trophySets) {
+        if (s.titleName) keyByTitle.set(mergeKey(s.titleName), g.key);
+      }
+    }
+    const gameByKey = new Map(games.map((g) => [g.key, g]));
+    const resolveKey = (title: string) => keyByTitle.get(mergeKey(title)) ?? mergeKey(title);
+    // Prefer the aggregated game's (English) title over the store's localized one.
+    const resolveTitle = (title: string) =>
+      gameByKey.get(resolveKey(title))?.title ?? cleanTitle(title);
+    return { resolveKey, resolveTitle };
   }
 
   getDashboard(): DashboardSummary {
@@ -413,21 +438,9 @@ export class GamesService {
 
     // Prefer individual platinum trophies from the incremental store (one per platinum earned,
     // with exact dates). Fall back to game-derived platinums before the first full trophy sync.
-    // Resolve a trophy/platinum's game to its aggregated key. Store titles can be in a
-    // different language than the game title (e.g. WUCHANG's Chinese "明末：渊虚之羽"), so we
-    // also index each game's trophy-set title names, not just its own title.
-    const keyByTitle = new Map<string, string>();
-    for (const g of games) {
-      keyByTitle.set(mergeKey(g.title), g.key);
-      for (const s of g.trophySets) {
-        if (s.titleName) keyByTitle.set(mergeKey(s.titleName), g.key);
-      }
-    }
-    const resolveKey = (title: string) => keyByTitle.get(mergeKey(title)) ?? mergeKey(title);
-    const gameByKey = new Map(games.map((g) => [g.key, g]));
-    // Prefer the aggregated game's (English) title over the store's localized one.
-    const resolveTitle = (title: string) =>
-      gameByKey.get(resolveKey(title))?.title ?? cleanTitle(title);
+    // Resolve a trophy/platinum's game to its aggregated key/title, mapping localized
+    // store titles (e.g. WUCHANG's Chinese "明末：渊虚之羽") to the canonical English one.
+    const { resolveKey, resolveTitle } = this.titleResolver(games);
 
     const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>();
     const storePlatinums = storedTrophies
