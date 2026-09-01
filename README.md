@@ -32,12 +32,9 @@ JWT_SECRET=        # 48+ random bytes, base64
 ENCRYPTION_KEY=    # exactly 32 random bytes, base64
 ```
 
-Generate the secrets:
-
-```powershell
-node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"  # JWT_SECRET
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # ENCRYPTION_KEY
-```
+`JWT_SECRET` and `ENCRYPTION_KEY` are **generated automatically on first run** and saved to
+`backend/.env` — you only fill in the external keys (`STEAM_API_KEY`, `RAWG_API_KEY`,
+`GOOGLE_CLIENT_ID`). If `backend/.env` doesn't exist yet, it's created from `.env.example`.
 
 > PSN and Steam accounts are connected **per user inside the app** (Profile screen), not in `.env` —
 > PSN via an NPSSO token (encrypted at rest), Steam via "Sign in with Steam" (OpenID).
@@ -78,21 +75,10 @@ Then open **http://localhost:5173**.
 | frontend | `npm run build`     | Production build                      |
 | frontend | `npm run format`    | Prettier                              |
 
-## API (main endpoints)
+## API docs
 
-Auth (public): `POST /api/auth/google`, `POST /api/auth/register`, `POST /api/auth/login`,
-`POST /api/auth/logout`, `GET /api/auth/me`.
-
-Everything below requires an authenticated session (cookie):
-
-- `GET /api/profile` — current user + connected providers
-- `POST /api/profile/psn` — connect PSN (NPSSO) · `GET /api/profile/steam/login` — connect Steam (OpenID)
-- `GET /api/dashboard` — dashboard summary · `GET /api/games` — library (from snapshot)
-- `POST /api/sync` — sync the signed-in user's providers and rewrite the snapshot
-- `GET /api/trophies` — individual trophies · `GET /api/backlog` — backlog
-- `POST /api/games/beaten` — mark as beaten · `POST /api/games/rating` — rate (0.5–5 stars)
-- `POST /api/manual` / `DELETE /api/manual/:id` — manual entries (Switch 2)
-- `GET /api/search?q=` — game search (RAWG) · `GET /api/meta?key=&title=` — game metadata (RAWG)
+Interactive API docs (Swagger UI) are served at **http://localhost:3000/docs** while the backend is
+running — every endpoint grouped by controller, with request/response details and "Try it out".
 
 ## Notes
 
