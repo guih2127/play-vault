@@ -7,13 +7,14 @@ import {
   setBeaten,
   setPlaying,
   setRating,
+  updateManualHours,
 } from './api'
 import type { SearchResult } from './api'
 import type { AggregatedGame } from './types'
 import { GameCard, GameModal, pct } from './components/GameCard'
 
 type SortKey = 'trophies' | 'playtime' | 'recent' | 'title' | 'platinum'
-type StatusFilter = 'all' | 'playing' | 'platinum' | 'beaten' | 'unbeaten'
+type StatusFilter = 'all' | 'playing' | 'platinum' | 'beaten' | 'unbeaten' | 'manual'
 
 const CARD_MIN = 158
 const CARD_GAP = 16
@@ -32,6 +33,7 @@ const STATUS_OPTIONS: Array<[StatusFilter, string]> = [
   ['platinum', 'Platinum'],
   ['beaten', 'Beaten'],
   ['unbeaten', 'Not beaten'],
+  ['manual', 'Manually added'],
 ]
 
 function isPlatinum(g: AggregatedGame): boolean {
@@ -110,6 +112,17 @@ export function Library({
     setReload((r) => r + 1)
   }, [])
 
+  const handleUpdateHours = useCallback(async (key: string, hours: number) => {
+    await updateManualHours(key, hours)
+    // Mirror the backend: hours <= 0 clears the playtime. Update in place so the modal stays open.
+    const minutes = hours > 0 ? Math.round(hours * 60) : 0
+    setGames((prev) =>
+      prev.map((g) =>
+        g.key === key ? { ...g, totalPlaytimeMinutes: minutes, playtimeKnown: hours > 0 } : g,
+      ),
+    )
+  }, [])
+
   const handleAdd = useCallback(
     async (data: {
       title: string
@@ -140,6 +153,7 @@ export function Library({
       if (status === 'platinum' && !isPlatinum(g)) return false
       if (status === 'beaten' && !isBeaten(g)) return false
       if (status === 'unbeaten' && isBeaten(g)) return false
+      if (status === 'manual' && !g.manual) return false
       return true
     })
     return list.sort(sorter(sort))
@@ -247,6 +261,7 @@ export function Library({
           onTogglePlaying={handleTogglePlaying}
           onRate={handleRate}
           onDelete={handleDelete}
+          onUpdateHours={handleUpdateHours}
         />
       ) : null}
 

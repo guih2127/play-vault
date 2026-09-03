@@ -62,7 +62,7 @@ export function GameCard({
           <div className="cover-fallback">{game.title.slice(0, 1)}</div>
         )}
         <PlatformBadges labels={game.platformLabels} />
-        {platinum || beaten || playing ? (
+        {platinum || beaten || playing || game.manual ? (
           <div className="badges badges-bottom">
             {platinum ? (
               <span className="status-tag status-tag-plat">
@@ -73,6 +73,7 @@ export function GameCard({
             {playing && !beaten ? (
               <span className="status-tag status-tag-playing">▶ Playing</span>
             ) : null}
+            {game.manual ? <span className="status-tag status-tag-manual">✎ Manual</span> : null}
           </div>
         ) : null}
       </div>
@@ -93,6 +94,7 @@ export function GameModal({
   onTogglePlaying,
   onRate,
   onDelete,
+  onUpdateHours,
 }: {
   game: AggregatedGame
   onClose: () => void
@@ -100,6 +102,7 @@ export function GameModal({
   onTogglePlaying: (key: string, playing: boolean) => void | Promise<void>
   onRate: (key: string, rating: number) => void | Promise<void>
   onDelete?: (key: string) => void | Promise<void>
+  onUpdateHours?: (key: string, hours: number) => void | Promise<void>
 }) {
   const [saving, setSaving] = useState(false)
   const platinum = isPlatinum(game)
@@ -170,7 +173,7 @@ export function GameModal({
             ) : null}
           </div>
 
-          {platinum || beaten || playing ? (
+          {platinum || beaten || playing || game.manual ? (
             <div className="modal-tags">
               {platinum ? (
                 <span className="status-tag status-tag-plat">
@@ -181,6 +184,7 @@ export function GameModal({
               {playing && !beaten ? (
                 <span className="status-tag status-tag-playing">▶ Playing</span>
               ) : null}
+              {game.manual ? <span className="status-tag status-tag-manual">✎ Manual</span> : null}
             </div>
           ) : null}
 
@@ -223,7 +227,7 @@ export function GameModal({
             )}
           </div>
 
-          {!beaten ? (
+          {!beaten || playing ? (
             <button
               className={`playing-btn ${playing ? 'playing-btn-on' : ''}`}
               onClick={togglePlaying}
@@ -235,12 +239,65 @@ export function GameModal({
           <button className="beaten-btn" onClick={toggleBeaten} disabled={platinum || saving}>
             {platinum ? 'Platinum (beaten)' : game.beaten ? 'Unmark as beaten' : 'Mark as beaten'}
           </button>
+          {game.manual && onUpdateHours ? (
+            <ManualHoursEditor game={game} onSave={onUpdateHours} />
+          ) : null}
           {game.manual && onDelete ? (
             <button className="delete-btn" onClick={() => onDelete(game.key)}>
               Remove game
             </button>
           ) : null}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function ManualHoursEditor({
+  game,
+  onSave,
+}: {
+  game: AggregatedGame
+  onSave: (key: string, hours: number) => void | Promise<void>
+}) {
+  const current = game.playtimeKnown
+    ? String(Math.round((game.totalPlaytimeMinutes / 60) * 10) / 10)
+    : ''
+  const [hours, setHours] = useState(current)
+  const [saving, setSaving] = useState(false)
+
+  // Keep the field in sync if the game's playtime changes underneath us (e.g. after a save).
+  useEffect(() => {
+    setHours(current)
+  }, [current])
+
+  const parsed = parseFloat(hours.replace(',', '.'))
+  const nextHours = Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+  const dirty = hours.trim() !== current
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      await onSave(game.key, nextHours)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="manual-hours">
+      <span className="rating-label">Hours played</span>
+      <div className="manual-hours-row">
+        <input
+          className="search"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          placeholder="e.g. 120"
+          inputMode="decimal"
+        />
+        <button className="beaten-btn" onClick={save} disabled={saving || !dirty}>
+          {saving ? 'Saving…' : 'Save hours'}
+        </button>
       </div>
     </div>
   )

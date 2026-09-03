@@ -169,6 +169,16 @@ export async function addManualGame(data: {
   if (!res.ok) throw new Error(`Failed to add (${res.status})`)
 }
 
+export async function updateManualHours(key: string, hours: number): Promise<void> {
+  const id = key.replace('manual:', '')
+  const res = await fetch(`/api/manual/${id}/hours`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hours }),
+  })
+  if (!res.ok) throw new Error(`Failed to update hours (${res.status})`)
+}
+
 export async function deleteManualGame(key: string): Promise<void> {
   const id = key.replace('manual:', '')
   const res = await fetch(`/api/manual/${id}`, { method: 'DELETE' })
