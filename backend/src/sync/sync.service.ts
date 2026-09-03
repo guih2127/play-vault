@@ -17,7 +17,7 @@ export interface SyncResult {
 @Injectable()
 export class SyncService {
   private readonly logger = new Logger(SyncService.name);
-  private running = false;
+  private readonly running = new Set<number>();
 
   constructor(
     @Inject(GAME_PROVIDERS) private readonly providers: GameProvider[],
@@ -26,8 +26,8 @@ export class SyncService {
     private readonly config: ConfigService,
   ) {}
 
-  isRunning(): boolean {
-    return this.running;
+  isRunning(userId: number): boolean {
+    return this.running.has(userId);
   }
 
   private resolveCredentials(userId: number): ProviderCredentials {
@@ -40,12 +40,12 @@ export class SyncService {
   }
 
   async sync(userId: number): Promise<SyncResult> {
-    if (this.running) throw new Error('Sync already in progress');
-    this.running = true;
+    if (this.running.has(userId)) throw new Error('Sync already in progress');
+    this.running.add(userId);
     try {
       this.logger.log('Starting sync...');
       const creds = this.resolveCredentials(userId);
-      const known = this.db.getTrophyTitleState();
+      const known = this.db.getTrophyTitleState(userId);
       const results = await Promise.all(this.providers.map((p) => p.fetch(creds, known)));
       const providers = results.map((r) => r.status);
       const games = mergeGames(results.flatMap((r) => r.games));
@@ -55,7 +55,7 @@ export class SyncService {
       let updated = 0;
       for (const r of results) {
         for (const u of r.trophyUpdates ?? []) {
-          this.db.upsertTitleTrophies(u.npCommId, u.lastUpdated, u.trophies);
+          this.db.upsertTitleTrophies(userId, u.npCommId, u.lastUpdated, u.trophies);
           updated++;
         }
       }
@@ -63,12 +63,12 @@ export class SyncService {
 
       const createdAt = new Date().toISOString();
       const payload: SnapshotPayload = { providers, games, trophyProfile };
-      this.db.saveSnapshot(createdAt, payload);
+      this.db.saveSnapshot(userId, createdAt, payload);
       this.logger.log(`Sync finished: ${games.length} games`);
 
       return { createdAt, providers, gameCount: games.length };
     } finally {
-      this.running = false;
+      this.running.delete(userId);
     }
   }
 }

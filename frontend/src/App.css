@@ -2334,6 +2334,12 @@
   border: 1px solid rgba(87, 185, 120, 0.4);
 }
 
+.status-tag-manual {
+  background: rgba(167, 139, 250, 0.16);
+  color: #b9a6fb;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+}
+
 .plat-trophy {
   color: var(--plat);
   filter: drop-shadow(0 0 3px rgba(150, 200, 255, 0.55));
@@ -2908,6 +2914,30 @@
 .beaten-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.manual-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.manual-hours-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manual-hours-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.manual-hours-row .beaten-btn {
+  width: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .rating-block {

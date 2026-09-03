@@ -18,6 +18,7 @@ import {
   setPlaying,
   setRating,
   startBacklogGame,
+  updateManualHours,
 } from './api'
 
 const GRID_MIN = 150
@@ -97,6 +98,12 @@ export function Overview({
     setSelGame(null)
     void onRefresh()
   }
+  const gUpdateHours = async (key: string, hours: number) => {
+    await updateManualHours(key, hours)
+    const minutes = hours > 0 ? Math.round(hours * 60) : 0
+    setSelGame((s) => (s ? { ...s, totalPlaytimeMinutes: minutes, playtimeKnown: hours > 0 } : s))
+    void onRefresh()
+  }
 
   const bPriority = async (id: number, priority: number) => {
     setSelBacklog((s) => (s ? { ...s, priority } : s))
@@ -170,6 +177,7 @@ export function Overview({
           onTogglePlaying={gTogglePlaying}
           onRate={gRate}
           onDelete={gDelete}
+          onUpdateHours={gUpdateHours}
         />
       ) : null}
 
