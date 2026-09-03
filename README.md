@@ -32,9 +32,10 @@ JWT_SECRET=        # 48+ random bytes, base64
 ENCRYPTION_KEY=    # exactly 32 random bytes, base64
 ```
 
-`JWT_SECRET` and `ENCRYPTION_KEY` are **generated automatically on first run** and saved to
-`backend/.env` — you only fill in the external keys (`STEAM_API_KEY`, `RAWG_API_KEY`,
+`JWT_SECRET` and `ENCRYPTION_KEY` are **generated automatically on first run (development only)**
+and saved to `backend/.env` — you only fill in the external keys (`STEAM_API_KEY`, `RAWG_API_KEY`,
 `GOOGLE_CLIENT_ID`). If `backend/.env` doesn't exist yet, it's created from `.env.example`.
+See [Deploying to production](#deploying-to-production) for how secrets and the database work there.
 
 > PSN and Steam accounts are connected **per user inside the app** (Profile screen), not in `.env` —
 > PSN via an NPSSO token (encrypted at rest), Steam via "Sign in with Steam" (OpenID).
@@ -61,6 +62,26 @@ Then open **http://localhost:5173**.
 
 > First time: sign in (Google or email/password), open **Profile**, connect PSN/Steam, then hit
 > **Sync** to pull your data and store a snapshot in SQLite (`backend/playvault.db`).
+
+## Deploying to production
+
+Set `NODE_ENV=production`. Two things behave differently — both to prevent silent data loss:
+
+- **Secrets are never auto-generated.** `JWT_SECRET` and `ENCRYPTION_KEY` must be provided as real
+  environment variables (host/platform secrets). If either is missing the app refuses to start with
+  a clear error. This is deliberate: auto-generating them would write to an ephemeral container
+  filesystem, so they'd rotate on the next deploy — logging out every user **and making already-
+  encrypted PSN tokens permanently undecryptable**. Generate stable values once and keep them:
+
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"  # JWT_SECRET
+  node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # ENCRYPTION_KEY
+  ```
+
+- **The database must live on a persistent volume.** SQLite is a single file; by default it's
+  `./playvault.db`, which is lost when the container's filesystem is recycled. Mount a persistent
+  volume and point `DATABASE_PATH` at it (e.g. `DATABASE_PATH=/data/playvault.db`) — the parent
+  directory is created automatically. Back it up regularly (copy the file, or `sqlite3 .backup`).
 
 ## Useful scripts
 
