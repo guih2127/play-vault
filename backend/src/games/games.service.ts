@@ -7,7 +7,7 @@ import type {
   RecentTrophy,
   TrophyProfile,
 } from '../domain/game.model.js';
-import { DatabaseService } from '../db/database.service.js';
+import { DatabaseService, type StoredSnapshot } from '../db/database.service.js';
 import type { AggregatedGame } from './aggregation.js';
 import { mergeKey } from './aggregation.js';
 import type { SnapshotPayload } from './snapshot.js';
@@ -137,17 +137,25 @@ export class GamesService {
     private readonly db: DatabaseService,
   ) {}
 
-  private latest() {
-    return this.db.getLatestSnapshot<SnapshotPayload>();
+  private latest(userId: number) {
+    return this.db.getLatestSnapshot<SnapshotPayload>(userId);
   }
 
-  getGames(): AggregatedGame[] {
-    const snap = this.latest();
-    const beatenKeys = this.db.getBeatenKeys();
-    const playingKeys = this.db.getPlayingKeys();
-    const ratings = this.db.getRatings();
+  /**
+   * `snap` and `storedTrophies` can be passed in by callers that already loaded them (e.g.
+   * getDashboard) to avoid re-reading and re-parsing the snapshot/trophy blobs; they default to
+   * a fresh read when omitted.
+   */
+  getGames(
+    userId: number,
+    snap: StoredSnapshot<SnapshotPayload> | null = this.latest(userId),
+    storedTrophies: RecentTrophy[] = this.db.getAllStoredTrophies<RecentTrophy>(userId),
+  ): AggregatedGame[] {
+    const beatenKeys = this.db.getBeatenKeys(userId);
+    const playingKeys = this.db.getPlayingKeys(userId);
+    const ratings = this.db.getRatings(userId);
     const synced = (snap?.data.games ?? []).filter((g) => g.trophySets.length > 0);
-    const all = [...synced, ...this.manualGames()];
+    const all = [...synced, ...this.manualGames(userId)];
 
     // Real platinum dates live in the incremental trophy store; map them to each game
     // (indexing by trophy-set title names too, so localized titles like WUCHANG resolve).
@@ -157,7 +165,7 @@ export class GamesService {
       for (const s of g.trophySets) if (s.titleName) keyByTitle.set(mergeKey(s.titleName), g.key);
     }
     const platDateByKey = new Map<string, string>();
-    for (const t of this.db.getAllStoredTrophies<RecentTrophy>()) {
+    for (const t of storedTrophies) {
       if (t.type !== 'platinum' || !t.earnedAt) continue;
       const key = keyByTitle.get(mergeKey(t.gameTitle)) ?? mergeKey(t.gameTitle);
       const prev = platDateByKey.get(key);
@@ -179,12 +187,12 @@ export class GamesService {
     }));
   }
 
-  setRating(key: string, rating: number): void {
-    this.db.setRating(key, Math.max(0, Math.min(5, Math.round(rating * 2) / 2)));
+  setRating(userId: number, key: string, rating: number): void {
+    this.db.setRating(userId, key, Math.max(0, Math.min(5, Math.round(rating * 2) / 2)));
   }
 
-  private manualGames(): AggregatedGame[] {
-    return this.db.listManualGames().map((row) => ({
+  private manualGames(userId: number): AggregatedGame[] {
+    return this.db.listManualGames(userId).map((row) => ({
       key: `manual:${row.id}`,
       title: row.title,
       platformLabels: [row.platform],
@@ -199,13 +207,13 @@ export class GamesService {
     }));
   }
 
-  setBeaten(key: string, beaten: boolean): void {
-    this.db.setBeaten(key, beaten);
-    if (beaten) this.db.setPlaying(key, false);
+  setBeaten(userId: number, key: string, beaten: boolean): void {
+    this.db.setBeaten(userId, key, beaten);
+    if (beaten) this.db.setPlaying(userId, key, false);
   }
 
-  setPlaying(key: string, playing: boolean): void {
-    this.db.setPlaying(key, playing);
+  setPlaying(userId: number, key: string, playing: boolean): void {
+    this.db.setPlaying(userId, key, playing);
   }
 
   /**
@@ -213,8 +221,8 @@ export class GamesService {
    * earned trophy, taken from the incremental trophy store. Lets the beaten list be
    * ordered by real completion date across platforms.
    */
-  backfillPsnBeatenDates(): { updated: number } {
-    const store = this.db.getAllStoredTrophies<RecentTrophy>();
+  backfillPsnBeatenDates(userId: number): { updated: number } {
+    const store = this.db.getAllStoredTrophies<RecentTrophy>(userId);
     const lastByKey = new Map<string, string>();
     for (const t of store) {
       if ((t.provider ?? 'psn') !== 'psn' || !t.earnedAt || !t.gameTitle) continue;
@@ -224,41 +232,54 @@ export class GamesService {
     }
 
     let updated = 0;
-    for (const g of this.getGames()) {
+    for (const g of this.getGames(userId, undefined, store)) {
       if (!g.providers.includes('psn') || !isBeaten(g)) continue;
       const date = lastByKey.get(g.key);
       if (!date) continue;
-      this.db.setBeatenDate(g.key, date);
+      this.db.setBeatenDate(userId, g.key, date);
       updated++;
     }
     return { updated };
   }
 
-  addManualGame(input: {
-    title?: string;
-    platform?: string;
-    hours?: number;
-    coverUrl?: string;
-    beaten?: boolean;
-  }): { id: number } {
+  addManualGame(
+    userId: number,
+    input: {
+      title?: string;
+      platform?: string;
+      hours?: number;
+      coverUrl?: string;
+      beaten?: boolean;
+    },
+  ): { id: number } {
     const title = (input.title ?? '').trim() || 'Untitled';
     const platform = (input.platform ?? '').trim() || 'Switch';
     const playtimeMinutes =
       typeof input.hours === 'number' && input.hours > 0 ? Math.round(input.hours * 60) : null;
     const coverUrl = (input.coverUrl ?? '').trim() || null;
-    const id = this.db.addManualGame({ title, platform, playtimeMinutes, coverUrl });
-    if (input.beaten) this.db.setBeaten(`manual:${id}`, true);
+    const id = this.db.addManualGame(userId, { title, platform, playtimeMinutes, coverUrl });
+    if (input.beaten) this.db.setBeaten(userId, `manual:${id}`, true);
     return { id };
   }
 
-  deleteManualGame(id: number): void {
-    this.db.deleteManualGame(id);
-    this.db.setBeaten(`manual:${id}`, false);
-    this.db.setPlaying(`manual:${id}`, false);
+  deleteManualGame(userId: number, id: number): void {
+    this.db.deleteManualGame(userId, id);
+    this.db.setBeaten(userId, `manual:${id}`, false);
+    this.db.setPlaying(userId, `manual:${id}`, false);
   }
 
-  getBacklog(): BacklogItem[] {
-    return this.db.listBacklogGames().map((row) => ({
+  /**
+   * Update the playtime of a manually-added game (Switch titles — the only games whose hours are
+   * entered by hand; synced games take their playtime from the provider). Returns false if the
+   * game doesn't exist for this user. `hours <= 0` clears the playtime.
+   */
+  updateManualGameHours(userId: number, id: number, hours: number): boolean {
+    const playtimeMinutes = typeof hours === 'number' && hours > 0 ? Math.round(hours * 60) : null;
+    return this.db.setManualGamePlaytime(userId, id, playtimeMinutes);
+  }
+
+  getBacklog(userId: number): BacklogItem[] {
+    return this.db.listBacklogGames(userId).map((row) => ({
       id: row.id,
       title: row.title,
       platform: row.platform,
@@ -269,47 +290,52 @@ export class GamesService {
     }));
   }
 
-  addBacklogGame(input: {
-    title?: string;
-    platform?: string;
-    coverUrl?: string;
-    priority?: number;
-    notes?: string;
-  }): { id: number } {
+  addBacklogGame(
+    userId: number,
+    input: {
+      title?: string;
+      platform?: string;
+      coverUrl?: string;
+      priority?: number;
+      notes?: string;
+    },
+  ): { id: number } {
     const title = (input.title ?? '').trim() || 'Untitled';
     const platform = (input.platform ?? '').trim() || 'Other';
     const coverUrl = (input.coverUrl ?? '').trim() || null;
     const notes = (input.notes ?? '').trim() || null;
     const priority = clampPriority(input.priority ?? 1);
-    const id = this.db.addBacklogGame({ title, platform, coverUrl, priority, notes });
+    const id = this.db.addBacklogGame(userId, { title, platform, coverUrl, priority, notes });
     return { id };
   }
 
-  setBacklogPriority(id: number, priority: number): void {
-    this.db.setBacklogPriority(id, clampPriority(priority));
+  setBacklogPriority(userId: number, id: number, priority: number): void {
+    this.db.setBacklogPriority(userId, id, clampPriority(priority));
   }
 
-  deleteBacklogGame(id: number): void {
-    this.db.deleteBacklogGame(id);
+  deleteBacklogGame(userId: number, id: number): void {
+    this.db.deleteBacklogGame(userId, id);
   }
 
   /** Move a backlog item into the library as a manual game ("I started playing"). */
-  startBacklogGame(id: number): { id: number } | null {
-    const row = this.db.getBacklogGame(id);
+  startBacklogGame(userId: number, id: number): { id: number } | null {
+    const row = this.db.getBacklogGame(userId, id);
     if (!row) return null;
-    const manualId = this.db.addManualGame({
+    const manualId = this.db.addManualGame(userId, {
       title: row.title,
       platform: row.platform,
       playtimeMinutes: null,
       coverUrl: row.cover_url,
     });
-    this.db.setPlaying(`manual:${manualId}`, true);
-    this.db.deleteBacklogGame(id);
+    this.db.setPlaying(userId, `manual:${manualId}`, true);
+    this.db.deleteBacklogGame(userId, id);
     return { id: manualId };
   }
 
-  getProviderStatuses(): ProviderStatus[] {
-    const snap = this.latest();
+  getProviderStatuses(
+    userId: number,
+    snap: StoredSnapshot<SnapshotPayload> | null = this.latest(userId),
+  ): ProviderStatus[] {
     if (snap) return snap.data.providers;
     return this.providers.map((p) => ({
       provider: p.platform,
@@ -319,12 +345,12 @@ export class GamesService {
   }
 
   /** All individual trophies stored so far, most recent first. */
-  getAllTrophies(): RecentTrophy[] {
+  getAllTrophies(userId: number): RecentTrophy[] {
     // Store titles can be localized (e.g. WUCHANG's Chinese "明末：渊虚之羽"); resolve
     // each to the aggregated game's canonical (English) title so it's consistent everywhere.
-    const { resolveTitle } = this.titleResolver(this.getGames());
-    return this.db
-      .getAllStoredTrophies<RecentTrophy>()
+    const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>(userId);
+    const { resolveTitle } = this.titleResolver(this.getGames(userId, undefined, storedTrophies));
+    return storedTrophies
       .map((t) => ({ ...t, provider: t.provider ?? 'psn', gameTitle: resolveTitle(t.gameTitle) }))
       .filter((t) => t.earnedAt)
       .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''));
@@ -352,9 +378,12 @@ export class GamesService {
     return { resolveKey, resolveTitle };
   }
 
-  getDashboard(): DashboardSummary {
-    const snap = this.latest();
-    const games = this.getGames();
+  getDashboard(userId: number): DashboardSummary {
+    // Load the snapshot and trophy store once and thread them through, so the dashboard doesn't
+    // re-read/re-parse these blobs in getGames() and getProviderStatuses().
+    const snap = this.latest(userId);
+    const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>(userId);
+    const games = this.getGames(userId, snap, storedTrophies);
 
     const playtimeMinutes = games.reduce((sum, g) => sum + g.totalPlaytimeMinutes, 0);
     const trophiesEarned = games.reduce(
@@ -365,7 +394,7 @@ export class GamesService {
       (sum, g) => sum + g.trophySets.reduce((s, t) => s + t.total, 0),
       0,
     );
-    const providerStatuses = this.getProviderStatuses();
+    const providerStatuses = this.getProviderStatuses(userId, snap);
     const platinumEarned = providerStatuses.reduce((sum, p) => sum + (p.platinumEarned ?? 0), 0);
     const platinumTotal = (snap?.data.games ?? []).reduce((sum, g) => sum + g.platinum.total, 0);
 
@@ -390,7 +419,7 @@ export class GamesService {
       .filter((g) => g.playing)
       .sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
 
-    const beatenDates = this.db.getBeatenDates();
+    const beatenDates = this.db.getBeatenDates(userId);
     const beatenAt = (g: AggregatedGame) => beatenDates.get(g.key) ?? g.lastPlayed ?? '';
     const beatenGames = games
       .filter((g) => isBeaten(g))
@@ -442,7 +471,6 @@ export class GamesService {
     // store titles (e.g. WUCHANG's Chinese "明末：渊虚之羽") to the canonical English one.
     const { resolveKey, resolveTitle } = this.titleResolver(games);
 
-    const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>();
     const storePlatinums = storedTrophies
       .filter((t) => t.type === 'platinum' && t.earnedAt)
       .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''))
@@ -523,7 +551,7 @@ export class GamesService {
         .map((t) => ({ ...t, provider, gameTitle: resolveTitle(t.gameTitle) }));
     const recentTrophies = { psn: latestTrophies('psn'), steam: latestTrophies('steam') };
 
-    const backlog = this.getBacklog();
+    const backlog = this.getBacklog(userId);
 
     return {
       lastSyncAt: snap?.createdAt ?? null,

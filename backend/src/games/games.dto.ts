@@ -24,6 +24,11 @@ export class RatingDto {
   rating: number;
 }
 
+export class ManualHoursDto {
+  @ApiProperty({ description: 'Hours played (0 or less clears the playtime)' })
+  hours: number;
+}
+
 export class ManualGameDto {
   @ApiProperty()
   title: string;

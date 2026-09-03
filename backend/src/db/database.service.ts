@@ -1,7 +1,7 @@
-import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, renameSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, renameSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 export interface StoredSnapshot<T> {
   id: number;
@@ -27,63 +27,20 @@ export interface DbConnections {
 }
 
 @Injectable()
-export class DatabaseService implements OnModuleInit {
+export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
   private db!: DatabaseSync;
 
   onModuleInit(): void {
-    const path = join(process.cwd(), 'playvault.db');
+    // In production point DATABASE_PATH at a persistent volume (e.g. /data/playvault.db) so the
+    // database survives redeploys. Defaults to ./playvault.db for local development.
+    const path = process.env.DATABASE_PATH?.trim() || join(process.cwd(), 'playvault.db');
+    const dir = dirname(path);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const legacy = join(process.cwd(), 'gametracker.db');
     if (!existsSync(path) && existsSync(legacy)) renameSync(legacy, path);
     this.db = new DatabaseSync(path);
     this.db.exec(`
-      CREATE TABLE IF NOT EXISTS snapshot (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        created_at TEXT NOT NULL,
-        data TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS game_flags (
-        game_key TEXT PRIMARY KEY,
-        beaten INTEGER NOT NULL DEFAULT 0,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS game_playing (
-        game_key TEXT PRIMARY KEY,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS game_meta (
-        game_key TEXT PRIMARY KEY,
-        data TEXT NOT NULL,
-        fetched_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS manual_game (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        platform TEXT NOT NULL,
-        playtime_minutes INTEGER,
-        cover_url TEXT,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS game_rating (
-        game_key TEXT PRIMARY KEY,
-        rating INTEGER NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS backlog (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        platform TEXT NOT NULL,
-        cover_url TEXT,
-        priority INTEGER NOT NULL DEFAULT 1,
-        notes TEXT,
-        created_at TEXT NOT NULL
-      );
-      CREATE TABLE IF NOT EXISTS title_trophies (
-        np_comm_id TEXT PRIMARY KEY,
-        last_updated TEXT,
-        data TEXT NOT NULL,
-        fetched_at TEXT NOT NULL
-      );
       CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         google_sub TEXT UNIQUE,
@@ -99,10 +56,91 @@ export class DatabaseService implements OnModuleInit {
         steam_id TEXT,
         updated_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS snapshot (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS game_flags (
+        user_id INTEGER NOT NULL,
+        game_key TEXT NOT NULL,
+        beaten INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, game_key)
+      );
+      CREATE TABLE IF NOT EXISTS game_playing (
+        user_id INTEGER NOT NULL,
+        game_key TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, game_key)
+      );
+      CREATE TABLE IF NOT EXISTS game_meta (
+        game_key TEXT PRIMARY KEY,
+        data TEXT NOT NULL,
+        fetched_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS manual_game (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        playtime_minutes INTEGER,
+        cover_url TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS game_rating (
+        user_id INTEGER NOT NULL,
+        game_key TEXT NOT NULL,
+        rating INTEGER NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, game_key)
+      );
+      CREATE TABLE IF NOT EXISTS backlog (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        platform TEXT NOT NULL,
+        cover_url TEXT,
+        priority INTEGER NOT NULL DEFAULT 1,
+        notes TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS title_trophies (
+        user_id INTEGER NOT NULL,
+        np_comm_id TEXT NOT NULL,
+        last_updated TEXT,
+        data TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        PRIMARY KEY (user_id, np_comm_id)
+      );
     `);
     this.migrateUsersTable();
     this.migrateConnectionsTable();
+    this.migratePerUserData();
+    this.ensureIndexes();
     this.logger.log(`SQLite database ready at ${path}`);
+  }
+
+  onModuleDestroy(): void {
+    this.db?.close();
+  }
+
+  /**
+   * Indexes for the lookups that aren't already served by a primary key. Runs after the per-user
+   * migration so the user_id columns exist. The *_key/np_comm_id tables are already covered by
+   * their composite PK (user_id is the leftmost column), so they need nothing extra.
+   */
+  private ensureIndexes(): void {
+    this.db.exec(`
+      -- Login/register look users up by email (not the PK).
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users (email);
+      -- getLatestSnapshot filters by user_id and takes the newest (highest id).
+      CREATE INDEX IF NOT EXISTS idx_snapshot_user ON snapshot (user_id, id);
+      -- Per-user listings of the id-keyed tables.
+      CREATE INDEX IF NOT EXISTS idx_manual_user ON manual_game (user_id);
+      CREATE INDEX IF NOT EXISTS idx_backlog_user ON backlog (user_id);
+    `);
   }
 
   private migrateConnectionsTable(): void {
@@ -132,6 +170,87 @@ export class DatabaseService implements OnModuleInit {
       DROP TABLE users;
       ALTER TABLE users_new RENAME TO users;
     `);
+  }
+
+  /** The account that pre-user-scoping global data belongs to (the single existing owner). */
+  private ownerId(): number | null {
+    const row = this.db.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get() as
+      | { id: number }
+      | undefined;
+    return row?.id ?? null;
+  }
+
+  /**
+   * Back when there was no login, all game/trophy data was global. Now every data table is
+   * scoped by user_id. For tables keyed by an autoincrement id we just add the column and
+   * backfill it; for tables whose primary key must become composite we rebuild them.
+   */
+  private migratePerUserData(): void {
+    const owner = this.ownerId();
+    this.migrateAddUserIdColumn('snapshot', owner);
+    this.migrateAddUserIdColumn('manual_game', owner);
+    this.migrateAddUserIdColumn('backlog', owner);
+    this.rebuildWithUserId(
+      'game_flags',
+      `user_id INTEGER NOT NULL, game_key TEXT NOT NULL, beaten INTEGER NOT NULL DEFAULT 0,
+       updated_at TEXT NOT NULL, PRIMARY KEY (user_id, game_key)`,
+      'game_key, beaten, updated_at',
+      owner,
+    );
+    this.rebuildWithUserId(
+      'game_playing',
+      `user_id INTEGER NOT NULL, game_key TEXT NOT NULL, updated_at TEXT NOT NULL,
+       PRIMARY KEY (user_id, game_key)`,
+      'game_key, updated_at',
+      owner,
+    );
+    this.rebuildWithUserId(
+      'game_rating',
+      `user_id INTEGER NOT NULL, game_key TEXT NOT NULL, rating INTEGER NOT NULL,
+       updated_at TEXT NOT NULL, PRIMARY KEY (user_id, game_key)`,
+      'game_key, rating, updated_at',
+      owner,
+    );
+    this.rebuildWithUserId(
+      'title_trophies',
+      `user_id INTEGER NOT NULL, np_comm_id TEXT NOT NULL, last_updated TEXT, data TEXT NOT NULL,
+       fetched_at TEXT NOT NULL, PRIMARY KEY (user_id, np_comm_id)`,
+      'np_comm_id, last_updated, data, fetched_at',
+      owner,
+    );
+  }
+
+  private hasUserId(table: string): boolean {
+    const cols = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    return cols.some((c) => c.name === 'user_id');
+  }
+
+  private migrateAddUserIdColumn(table: string, owner: number | null): void {
+    if (this.hasUserId(table)) return;
+    this.db.exec(`ALTER TABLE ${table} ADD COLUMN user_id INTEGER`);
+    if (owner != null) {
+      this.db.prepare(`UPDATE ${table} SET user_id = ? WHERE user_id IS NULL`).run(owner);
+    }
+    this.logger.log(`Migrated ${table} to per-user (owner=${owner ?? 'none'})`);
+  }
+
+  private rebuildWithUserId(
+    table: string,
+    newColumnsDdl: string,
+    copyColumns: string,
+    owner: number | null,
+  ): void {
+    if (this.hasUserId(table)) return;
+    this.db.exec(`CREATE TABLE ${table}_new (${newColumnsDdl});`);
+    if (owner != null) {
+      this.db
+        .prepare(
+          `INSERT INTO ${table}_new (user_id, ${copyColumns}) SELECT ?, ${copyColumns} FROM ${table}`,
+        )
+        .run(owner);
+    }
+    this.db.exec(`DROP TABLE ${table}; ALTER TABLE ${table}_new RENAME TO ${table};`);
+    this.logger.log(`Rebuilt ${table} as per-user (owner=${owner ?? 'none'})`);
   }
 
   upsertUser(u: { googleSub: string; email?: string; name?: string; picture?: string }): DbUser {
@@ -200,69 +319,75 @@ export class DatabaseService implements OnModuleInit {
       .run(userId, steamId, new Date().toISOString());
   }
 
-  setBeaten(gameKey: string, beaten: boolean): void {
+  setBeaten(userId: number, gameKey: string, beaten: boolean): void {
     this.db
       .prepare(
-        `INSERT INTO game_flags (game_key, beaten, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(game_key) DO UPDATE SET beaten = excluded.beaten, updated_at = excluded.updated_at`,
+        `INSERT INTO game_flags (user_id, game_key, beaten, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, game_key) DO UPDATE SET beaten = excluded.beaten, updated_at = excluded.updated_at`,
       )
-      .run(gameKey, beaten ? 1 : 0, new Date().toISOString());
+      .run(userId, gameKey, beaten ? 1 : 0, new Date().toISOString());
   }
 
-  getBeatenKeys(): Set<string> {
+  getBeatenKeys(userId: number): Set<string> {
     const rows = this.db
-      .prepare('SELECT game_key FROM game_flags WHERE beaten = 1')
-      .all() as Array<{ game_key: string }>;
+      .prepare('SELECT game_key FROM game_flags WHERE user_id = ? AND beaten = 1')
+      .all(userId) as Array<{ game_key: string }>;
     return new Set(rows.map((r) => r.game_key));
   }
 
-  setBeatenDate(gameKey: string, date: string): void {
+  setBeatenDate(userId: number, gameKey: string, date: string): void {
     this.db
       .prepare(
-        `INSERT INTO game_flags (game_key, beaten, updated_at) VALUES (?, 1, ?)
-         ON CONFLICT(game_key) DO UPDATE SET beaten = 1, updated_at = excluded.updated_at`,
+        `INSERT INTO game_flags (user_id, game_key, beaten, updated_at) VALUES (?, ?, 1, ?)
+         ON CONFLICT(user_id, game_key) DO UPDATE SET beaten = 1, updated_at = excluded.updated_at`,
       )
-      .run(gameKey, date);
+      .run(userId, gameKey, date);
   }
 
-  getBeatenDates(): Map<string, string> {
+  getBeatenDates(userId: number): Map<string, string> {
     const rows = this.db
-      .prepare('SELECT game_key, updated_at FROM game_flags WHERE beaten = 1')
-      .all() as Array<{ game_key: string; updated_at: string }>;
+      .prepare('SELECT game_key, updated_at FROM game_flags WHERE user_id = ? AND beaten = 1')
+      .all(userId) as Array<{ game_key: string; updated_at: string }>;
     return new Map(rows.map((r) => [r.game_key, r.updated_at]));
   }
 
-  setPlaying(gameKey: string, playing: boolean): void {
+  setPlaying(userId: number, gameKey: string, playing: boolean): void {
     if (!playing) {
-      this.db.prepare('DELETE FROM game_playing WHERE game_key = ?').run(gameKey);
+      this.db
+        .prepare('DELETE FROM game_playing WHERE user_id = ? AND game_key = ?')
+        .run(userId, gameKey);
       return;
     }
     this.db
       .prepare(
-        `INSERT INTO game_playing (game_key, updated_at) VALUES (?, ?)
-         ON CONFLICT(game_key) DO UPDATE SET updated_at = excluded.updated_at`,
+        `INSERT INTO game_playing (user_id, game_key, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(user_id, game_key) DO UPDATE SET updated_at = excluded.updated_at`,
       )
-      .run(gameKey, new Date().toISOString());
+      .run(userId, gameKey, new Date().toISOString());
   }
 
-  getPlayingKeys(): Set<string> {
-    const rows = this.db.prepare('SELECT game_key FROM game_playing').all() as Array<{
-      game_key: string;
-    }>;
+  getPlayingKeys(userId: number): Set<string> {
+    const rows = this.db
+      .prepare('SELECT game_key FROM game_playing WHERE user_id = ?')
+      .all(userId) as Array<{ game_key: string }>;
     return new Set(rows.map((r) => r.game_key));
   }
 
-  addManualGame(game: {
-    title: string;
-    platform: string;
-    playtimeMinutes: number | null;
-    coverUrl: string | null;
-  }): number {
+  addManualGame(
+    userId: number,
+    game: {
+      title: string;
+      platform: string;
+      playtimeMinutes: number | null;
+      coverUrl: string | null;
+    },
+  ): number {
     const info = this.db
       .prepare(
-        'INSERT INTO manual_game (title, platform, playtime_minutes, cover_url, created_at) VALUES (?, ?, ?, ?, ?)',
+        'INSERT INTO manual_game (user_id, title, platform, playtime_minutes, cover_url, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       )
       .run(
+        userId,
         game.title,
         game.platform,
         game.playtimeMinutes,
@@ -272,7 +397,7 @@ export class DatabaseService implements OnModuleInit {
     return Number(info.lastInsertRowid);
   }
 
-  listManualGames(): Array<{
+  listManualGames(userId: number): Array<{
     id: number;
     title: string;
     platform: string;
@@ -281,9 +406,9 @@ export class DatabaseService implements OnModuleInit {
   }> {
     return this.db
       .prepare(
-        'SELECT id, title, platform, playtime_minutes, cover_url FROM manual_game ORDER BY id DESC',
+        'SELECT id, title, platform, playtime_minutes, cover_url FROM manual_game WHERE user_id = ? ORDER BY id DESC',
       )
-      .all() as Array<{
+      .all(userId) as Array<{
       id: number;
       title: string;
       platform: string;
@@ -292,22 +417,34 @@ export class DatabaseService implements OnModuleInit {
     }>;
   }
 
-  deleteManualGame(id: number): void {
-    this.db.prepare('DELETE FROM manual_game WHERE id = ?').run(id);
+  deleteManualGame(userId: number, id: number): void {
+    this.db.prepare('DELETE FROM manual_game WHERE user_id = ? AND id = ?').run(userId, id);
   }
 
-  addBacklogGame(game: {
-    title: string;
-    platform: string;
-    coverUrl: string | null;
-    priority: number;
-    notes: string | null;
-  }): number {
+  /** Update a manual game's playtime. Returns false if no such game exists for this user. */
+  setManualGamePlaytime(userId: number, id: number, playtimeMinutes: number | null): boolean {
+    const info = this.db
+      .prepare('UPDATE manual_game SET playtime_minutes = ? WHERE user_id = ? AND id = ?')
+      .run(playtimeMinutes, userId, id);
+    return Number(info.changes) > 0;
+  }
+
+  addBacklogGame(
+    userId: number,
+    game: {
+      title: string;
+      platform: string;
+      coverUrl: string | null;
+      priority: number;
+      notes: string | null;
+    },
+  ): number {
     const info = this.db
       .prepare(
-        'INSERT INTO backlog (title, platform, cover_url, priority, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO backlog (user_id, title, platform, cover_url, priority, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
       )
       .run(
+        userId,
         game.title,
         game.platform,
         game.coverUrl,
@@ -318,7 +455,7 @@ export class DatabaseService implements OnModuleInit {
     return Number(info.lastInsertRowid);
   }
 
-  listBacklogGames(): Array<{
+  listBacklogGames(userId: number): Array<{
     id: number;
     title: string;
     platform: string;
@@ -329,9 +466,9 @@ export class DatabaseService implements OnModuleInit {
   }> {
     return this.db
       .prepare(
-        'SELECT id, title, platform, cover_url, priority, notes, created_at FROM backlog ORDER BY priority DESC, id DESC',
+        'SELECT id, title, platform, cover_url, priority, notes, created_at FROM backlog WHERE user_id = ? ORDER BY priority DESC, id DESC',
       )
-      .all() as Array<{
+      .all(userId) as Array<{
       id: number;
       title: string;
       platform: string;
@@ -342,7 +479,10 @@ export class DatabaseService implements OnModuleInit {
     }>;
   }
 
-  getBacklogGame(id: number):
+  getBacklogGame(
+    userId: number,
+    id: number,
+  ):
     | {
         id: number;
         title: string;
@@ -355,9 +495,9 @@ export class DatabaseService implements OnModuleInit {
     | undefined {
     return this.db
       .prepare(
-        'SELECT id, title, platform, cover_url, priority, notes, created_at FROM backlog WHERE id = ?',
+        'SELECT id, title, platform, cover_url, priority, notes, created_at FROM backlog WHERE user_id = ? AND id = ?',
       )
-      .get(id) as
+      .get(userId, id) as
       | {
           id: number;
           title: string;
@@ -370,12 +510,14 @@ export class DatabaseService implements OnModuleInit {
       | undefined;
   }
 
-  setBacklogPriority(id: number, priority: number): void {
-    this.db.prepare('UPDATE backlog SET priority = ? WHERE id = ?').run(priority, id);
+  setBacklogPriority(userId: number, id: number, priority: number): void {
+    this.db
+      .prepare('UPDATE backlog SET priority = ? WHERE user_id = ? AND id = ?')
+      .run(priority, userId, id);
   }
 
-  deleteBacklogGame(id: number): void {
-    this.db.prepare('DELETE FROM backlog WHERE id = ?').run(id);
+  deleteBacklogGame(userId: number, id: number): void {
+    this.db.prepare('DELETE FROM backlog WHERE user_id = ? AND id = ?').run(userId, id);
   }
 
   setMeta(gameKey: string, data: unknown): void {
@@ -387,21 +529,25 @@ export class DatabaseService implements OnModuleInit {
       .run(gameKey, JSON.stringify(data), new Date().toISOString());
   }
 
-  setRating(gameKey: string, rating: number): void {
+  setRating(userId: number, gameKey: string, rating: number): void {
     if (!rating) {
-      this.db.prepare('DELETE FROM game_rating WHERE game_key = ?').run(gameKey);
+      this.db
+        .prepare('DELETE FROM game_rating WHERE user_id = ? AND game_key = ?')
+        .run(userId, gameKey);
       return;
     }
     this.db
       .prepare(
-        `INSERT INTO game_rating (game_key, rating, updated_at) VALUES (?, ?, ?)
-         ON CONFLICT(game_key) DO UPDATE SET rating = excluded.rating, updated_at = excluded.updated_at`,
+        `INSERT INTO game_rating (user_id, game_key, rating, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(user_id, game_key) DO UPDATE SET rating = excluded.rating, updated_at = excluded.updated_at`,
       )
-      .run(gameKey, rating, new Date().toISOString());
+      .run(userId, gameKey, rating, new Date().toISOString());
   }
 
-  getRatings(): Map<string, number> {
-    const rows = this.db.prepare('SELECT game_key, rating FROM game_rating').all() as Array<{
+  getRatings(userId: number): Map<string, number> {
+    const rows = this.db
+      .prepare('SELECT game_key, rating FROM game_rating WHERE user_id = ?')
+      .all(userId) as Array<{
       game_key: string;
       rating: number;
     }>;
@@ -410,35 +556,43 @@ export class DatabaseService implements OnModuleInit {
 
   getMeta<T>(gameKey: string): T | null {
     const row = this.db.prepare('SELECT data FROM game_meta WHERE game_key = ?').get(gameKey) as
-      { data: string } | undefined;
+      | { data: string }
+      | undefined;
     return row ? (JSON.parse(row.data) as T) : null;
   }
 
-  saveSnapshot(createdAt: string, data: unknown): void {
+  saveSnapshot(userId: number, createdAt: string, data: unknown): void {
     this.db
-      .prepare('INSERT INTO snapshot (created_at, data) VALUES (?, ?)')
-      .run(createdAt, JSON.stringify(data));
+      .prepare('INSERT INTO snapshot (user_id, created_at, data) VALUES (?, ?, ?)')
+      .run(userId, createdAt, JSON.stringify(data));
   }
 
   /** Map of title id -> lastUpdatedDateTime already stored, for incremental sync diffing. */
-  getTrophyTitleState(): Map<string, string> {
+  getTrophyTitleState(userId: number): Map<string, string> {
     const rows = this.db
-      .prepare('SELECT np_comm_id, last_updated FROM title_trophies')
-      .all() as Array<{ np_comm_id: string; last_updated: string | null }>;
+      .prepare('SELECT np_comm_id, last_updated FROM title_trophies WHERE user_id = ?')
+      .all(userId) as Array<{ np_comm_id: string; last_updated: string | null }>;
     return new Map(rows.map((r) => [r.np_comm_id, r.last_updated ?? '']));
   }
 
-  upsertTitleTrophies(npCommId: string, lastUpdated: string | undefined, trophies: unknown): void {
+  upsertTitleTrophies(
+    userId: number,
+    npCommId: string,
+    lastUpdated: string | undefined,
+    trophies: unknown,
+  ): void {
     this.db
       .prepare(
-        `INSERT INTO title_trophies (np_comm_id, last_updated, data, fetched_at) VALUES (?, ?, ?, ?)
-         ON CONFLICT(np_comm_id) DO UPDATE SET last_updated = excluded.last_updated, data = excluded.data, fetched_at = excluded.fetched_at`,
+        `INSERT INTO title_trophies (user_id, np_comm_id, last_updated, data, fetched_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(user_id, np_comm_id) DO UPDATE SET last_updated = excluded.last_updated, data = excluded.data, fetched_at = excluded.fetched_at`,
       )
-      .run(npCommId, lastUpdated ?? null, JSON.stringify(trophies), new Date().toISOString());
+      .run(userId, npCommId, lastUpdated ?? null, JSON.stringify(trophies), new Date().toISOString());
   }
 
-  getAllStoredTrophies<T>(): T[] {
-    const rows = this.db.prepare('SELECT data FROM title_trophies').all() as Array<{
+  getAllStoredTrophies<T>(userId: number): T[] {
+    const rows = this.db
+      .prepare('SELECT data FROM title_trophies WHERE user_id = ?')
+      .all(userId) as Array<{
       data: string;
     }>;
     const out: T[] = [];
@@ -453,10 +607,10 @@ export class DatabaseService implements OnModuleInit {
     return out;
   }
 
-  getLatestSnapshot<T>(): StoredSnapshot<T> | null {
+  getLatestSnapshot<T>(userId: number): StoredSnapshot<T> | null {
     const row = this.db
-      .prepare('SELECT id, created_at, data FROM snapshot ORDER BY id DESC LIMIT 1')
-      .get() as { id: number; created_at: string; data: string } | undefined;
+      .prepare('SELECT id, created_at, data FROM snapshot WHERE user_id = ? ORDER BY id DESC LIMIT 1')
+      .get(userId) as { id: number; created_at: string; data: string } | undefined;
     if (!row) return null;
     return { id: row.id, createdAt: row.created_at, data: JSON.parse(row.data) as T };
   }
