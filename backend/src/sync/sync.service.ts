@@ -30,8 +30,8 @@ export class SyncService {
     return this.running.has(userId);
   }
 
-  private resolveCredentials(userId: number): ProviderCredentials {
-    const conn = this.db.getConnections(userId);
+  private async resolveCredentials(userId: number): Promise<ProviderCredentials> {
+    const conn = await this.db.getConnections(userId);
     return {
       psnNpsso: conn?.psn_npsso ? this.crypto.decrypt(conn.psn_npsso) : undefined,
       steamApiKey: this.config.get<string>('STEAM_API_KEY')?.trim() || undefined,
@@ -44,8 +44,8 @@ export class SyncService {
     this.running.add(userId);
     try {
       this.logger.log('Starting sync...');
-      const creds = this.resolveCredentials(userId);
-      const known = this.db.getTrophyTitleState(userId);
+      const creds = await this.resolveCredentials(userId);
+      const known = await this.db.getTrophyTitleState(userId);
       const results = await Promise.all(this.providers.map((p) => p.fetch(creds, known)));
       const providers = results.map((r) => r.status);
       const games = mergeGames(results.flatMap((r) => r.games));
@@ -55,7 +55,7 @@ export class SyncService {
       let updated = 0;
       for (const r of results) {
         for (const u of r.trophyUpdates ?? []) {
-          this.db.upsertTitleTrophies(userId, u.npCommId, u.lastUpdated, u.trophies);
+          await this.db.upsertTitleTrophies(userId, u.npCommId, u.lastUpdated, u.trophies);
           updated++;
         }
       }
@@ -63,7 +63,7 @@ export class SyncService {
 
       const createdAt = new Date().toISOString();
       const payload: SnapshotPayload = { providers, games, trophyProfile };
-      this.db.saveSnapshot(userId, createdAt, payload);
+      await this.db.saveSnapshot(userId, createdAt, payload);
       this.logger.log(`Sync finished: ${games.length} games`);
 
       return { createdAt, providers, gameCount: games.length };

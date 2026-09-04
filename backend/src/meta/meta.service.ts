@@ -31,12 +31,12 @@ export class MetaService {
   async getMeta(gameKey: string, title: string): Promise<GameMeta> {
     if (!this.key) return { found: false, configured: false, genres: [] };
 
-    const cached = this.db.getMeta<GameMeta>(gameKey);
+    const cached = await this.db.getMeta<GameMeta>(gameKey);
     if (cached) return { ...cached, configured: true };
 
     try {
       const meta = await this.fetchRawg(title);
-      this.db.setMeta(gameKey, meta);
+      await this.db.setMeta(gameKey, meta);
       return { ...meta, configured: true };
     } catch (err) {
       this.logger.warn(

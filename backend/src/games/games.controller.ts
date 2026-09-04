@@ -73,7 +73,7 @@ export class GamesController {
   @Post('sync')
   async runSync(@Req() req: AuthedRequest) {
     const result = await this.sync.sync(req.user.id);
-    this.games.backfillPsnBeatenDates(req.user.id);
+    await this.games.backfillPsnBeatenDates(req.user.id);
     return result;
   }
 
@@ -83,20 +83,20 @@ export class GamesController {
   }
 
   @Post('games/beaten')
-  setBeaten(@Req() req: AuthedRequest, @Body() body: BeatenDto) {
-    this.games.setBeaten(req.user.id, body.key, !!body.beaten);
+  async setBeaten(@Req() req: AuthedRequest, @Body() body: BeatenDto) {
+    await this.games.setBeaten(req.user.id, body.key, !!body.beaten);
     return { ok: true };
   }
 
   @Post('games/playing')
-  setPlaying(@Req() req: AuthedRequest, @Body() body: PlayingDto) {
-    this.games.setPlaying(req.user.id, body.key, !!body.playing);
+  async setPlaying(@Req() req: AuthedRequest, @Body() body: PlayingDto) {
+    await this.games.setPlaying(req.user.id, body.key, !!body.playing);
     return { ok: true };
   }
 
   @Post('games/rating')
-  setRating(@Req() req: AuthedRequest, @Body() body: RatingDto) {
-    this.games.setRating(req.user.id, body.key, Number(body.rating) || 0);
+  async setRating(@Req() req: AuthedRequest, @Body() body: RatingDto) {
+    await this.games.setRating(req.user.id, body.key, Number(body.rating) || 0);
     return { ok: true };
   }
 
@@ -106,19 +106,23 @@ export class GamesController {
   }
 
   @Post('manual/:id/hours')
-  updateManualHours(
+  async updateManualHours(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
     @Body() body: ManualHoursDto,
   ) {
-    const ok = this.games.updateManualGameHours(req.user.id, Number(id), Number(body.hours) || 0);
+    const ok = await this.games.updateManualGameHours(
+      req.user.id,
+      Number(id),
+      Number(body.hours) || 0,
+    );
     if (!ok) throw new NotFoundException('Manual game not found');
     return { ok: true };
   }
 
   @Delete('manual/:id')
-  deleteManual(@Req() req: AuthedRequest, @Param('id') id: string) {
-    this.games.deleteManualGame(req.user.id, Number(id));
+  async deleteManual(@Req() req: AuthedRequest, @Param('id') id: string) {
+    await this.games.deleteManualGame(req.user.id, Number(id));
     return { ok: true };
   }
 
@@ -133,12 +137,12 @@ export class GamesController {
   }
 
   @Post('backlog/:id/priority')
-  setBacklogPriority(
+  async setBacklogPriority(
     @Req() req: AuthedRequest,
     @Param('id') id: string,
     @Body() body: BacklogPriorityDto,
   ) {
-    this.games.setBacklogPriority(req.user.id, Number(id), Number(body.priority));
+    await this.games.setBacklogPriority(req.user.id, Number(id), Number(body.priority));
     return { ok: true };
   }
 
@@ -148,8 +152,8 @@ export class GamesController {
   }
 
   @Delete('backlog/:id')
-  deleteBacklog(@Req() req: AuthedRequest, @Param('id') id: string) {
-    this.games.deleteBacklogGame(req.user.id, Number(id));
+  async deleteBacklog(@Req() req: AuthedRequest, @Param('id') id: string) {
+    await this.games.deleteBacklogGame(req.user.id, Number(id));
     return { ok: true };
   }
 }

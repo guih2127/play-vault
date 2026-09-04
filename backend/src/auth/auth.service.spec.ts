@@ -16,7 +16,7 @@ function makeAuth(db: DatabaseService): AuthService {
 
 describe('AuthService.register', () => {
   it('creates a user and stores a bcrypt hash (not the plaintext)', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     const user = await auth.register('Ana@B.com ', 'password123', 'Ana');
     expect(user.email).toBe('ana@b.com'); // normalized
     expect(user.password_hash).toBeTruthy();
@@ -24,17 +24,17 @@ describe('AuthService.register', () => {
   });
 
   it('rejects a short password', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     await expect(auth.register('a@b.com', 'short')).rejects.toThrow();
   });
 
   it('rejects an invalid email', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     await expect(auth.register('not-an-email', 'password123')).rejects.toThrow();
   });
 
   it('rejects a duplicate email', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     await auth.register('a@b.com', 'password123');
     await expect(auth.register('a@b.com', 'password123')).rejects.toThrow();
   });
@@ -42,7 +42,7 @@ describe('AuthService.register', () => {
 
 describe('AuthService.loginWithPassword', () => {
   it('accepts the correct password and rejects wrong ones', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     await auth.register('a@b.com', 'password123');
     const user = await auth.loginWithPassword('a@b.com', 'password123');
     expect(user.email).toBe('a@b.com');
@@ -53,21 +53,21 @@ describe('AuthService.loginWithPassword', () => {
 
 describe('AuthService session tokens', () => {
   it('round-trips a signed session and rejects bad tokens', async () => {
-    const auth = makeAuth(makeTestDb());
+    const auth = makeAuth(await makeTestDb());
     const user = await auth.register('a@b.com', 'password123');
     const token = auth.signSession(user);
-    expect(auth.userFromToken(token)?.id).toBe(user.id);
-    expect(auth.userFromToken('garbage.token.value')).toBeNull();
-    expect(auth.userFromToken(undefined)).toBeNull();
+    expect((await auth.userFromToken(token))?.id).toBe(user.id);
+    expect(await auth.userFromToken('garbage.token.value')).toBeNull();
+    expect(await auth.userFromToken(undefined)).toBeNull();
   });
 
   it('invalidates a token whose user no longer exists', async () => {
-    const db = makeTestDb();
+    const db = await makeTestDb();
     const auth = makeAuth(db);
     const user = await auth.register('a@b.com', 'password123');
     const token = auth.signSession(user);
     // Signed with a different secret → verification fails.
-    const otherAuth = makeAuth(makeTestDb());
-    expect(otherAuth.userFromToken(token)).toBeNull();
+    const otherAuth = makeAuth(await makeTestDb());
+    expect(await otherAuth.userFromToken(token)).toBeNull();
   });
 });

@@ -57,14 +57,15 @@ export class AuthService implements OnModuleInit {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) throw new BadRequestException('Invalid email');
     if (!password || password.length < 8)
       throw new BadRequestException('Password must be at least 8 characters');
-    if (this.db.getUserByEmail(e)) throw new ConflictException('This email is already registered');
+    if (await this.db.getUserByEmail(e))
+      throw new ConflictException('This email is already registered');
     const passwordHash = await bcrypt.hash(password, 10);
     return this.db.createPasswordUser({ email: e, name: name?.trim() || undefined, passwordHash });
   }
 
   async loginWithPassword(email: string, password: string): Promise<DbUser> {
     const e = (email ?? '').trim().toLowerCase();
-    const user = this.db.getUserByEmail(e);
+    const user = await this.db.getUserByEmail(e);
     if (!user?.password_hash) throw new UnauthorizedException('Incorrect email or password');
     const ok = await bcrypt.compare(password ?? '', user.password_hash);
     if (!ok) throw new UnauthorizedException('Incorrect email or password');
@@ -75,11 +76,11 @@ export class AuthService implements OnModuleInit {
     return jwt.sign({ uid: user.id }, this.jwtSecret, { expiresIn: '30d' });
   }
 
-  userFromToken(token: string | undefined): DbUser | null {
+  async userFromToken(token: string | undefined): Promise<DbUser | null> {
     if (!token) return null;
     try {
       const decoded = jwt.verify(token, this.jwtSecret) as { uid: number };
-      return this.db.getUserById(decoded.uid);
+      return await this.db.getUserById(decoded.uid);
     } catch {
       return null;
     }
