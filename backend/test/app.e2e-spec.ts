@@ -1,31 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
 import request from 'supertest';
 import { AppModule } from './../src/app.module.js';
+import { DatabaseService } from '../src/db/database.service.js';
+import { makeTestDb } from './helpers/db.js';
 
 describe('Auth + dashboard (e2e)', () => {
-  let app: INestApplication;
+  let app: NestExpressApplication;
 
   beforeEach(async () => {
-    // Keep the suite self-contained: in-memory DB and throwaway secrets.
-    process.env.DATABASE_PATH = ':memory:';
+    // Keep the suite self-contained: throwaway secrets and an in-memory (pg-mem) database.
     process.env.JWT_SECRET = 'e2e-secret';
     process.env.ENCRYPTION_KEY = Buffer.alloc(32).toString('base64');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(DatabaseService)
+      .useFactory({ factory: () => makeTestDb() })
+      .compile();
 
     // Mirror the real bootstrap (main.ts) so the HTTP stack behaves like production.
-    app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication<NestExpressApplication>();
     app.setGlobalPrefix('api');
+    app.useStaticAssets(process.env.STATIC_DIR ?? 'nonexistent');
     app.use(cookieParser());
     await app.init();
   });
 
   afterEach(async () => {
     await app.close();
+  });
+
+  it('serves the health check and the built SPA', async () => {
+    await request(app.getHttpServer()).get('/api/health').expect(200).expect({ status: 'ok' });
+    const root = await request(app.getHttpServer()).get('/').expect(200);
+    expect(root.text.toLowerCase()).toContain('<!doctype html');
   });
 
   it('rejects an unauthenticated request to a protected route', () => {

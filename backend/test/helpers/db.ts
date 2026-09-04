@@ -1,12 +1,15 @@
+import { newDb } from 'pg-mem';
+import type { Pool } from 'pg';
 import { DatabaseService } from '../../src/db/database.service.js';
 
 /**
- * A fresh, fully-isolated in-memory DatabaseService. Each call gets its own SQLite database, so
- * tests never share state. The schema and migrations run exactly as in production.
+ * A fresh, fully-isolated DatabaseService backed by an in-memory Postgres (pg-mem). Each call
+ * gets its own database, so tests never share state, and the real schema/queries run unchanged.
  */
-export function makeTestDb(): DatabaseService {
-  process.env.DATABASE_PATH = ':memory:';
+export async function makeTestDb(): Promise<DatabaseService> {
+  const mem = newDb();
+  const { Pool: MemPool } = mem.adapters.createPg();
   const db = new DatabaseService();
-  db.onModuleInit();
+  await db.onModuleInit(new MemPool() as unknown as Pool);
   return db;
 }
