@@ -1,0 +1,33 @@
+# Render blueprint (https://render.com). One free web service that builds the frontend, builds the
+# backend, and runs the backend — which serves the built SPA and the API from the same origin.
+# The database is a managed Postgres (e.g. a free Neon project) referenced via DATABASE_URL.
+services:
+  - type: web
+    name: playvault
+    runtime: node
+    plan: free
+    buildCommand: cd frontend && npm ci && npm run build && cd ../backend && npm ci && npm run build
+    startCommand: cd backend && node dist/main
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      - key: NODE_ENV
+        value: production
+      # Set these in the Render dashboard (Environment tab) — never commit them.
+      - key: DATABASE_URL # Postgres connection string (Neon)
+        sync: false
+      - key: JWT_SECRET # 48+ random bytes, base64
+        sync: false
+      - key: ENCRYPTION_KEY # exactly 32 random bytes, base64
+        sync: false
+      - key: APP_URL # https://<your-app>.onrender.com
+        sync: false
+      - key: GOOGLE_CLIENT_ID # backend token verification
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID # same value; read at frontend build time
+        sync: false
+      - key: STEAM_API_KEY
+        sync: false
+      - key: RAWG_API_KEY
+        sync: false

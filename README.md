@@ -3,12 +3,14 @@
 Personal app to sync and browse the games you've played on PS5, Steam and Switch 2 — with
 trophies/achievements, platinums, ratings, a backlog and playtime.
 
-- **Backend:** NestJS (ESM) + Node's native SQLite (`node:sqlite`) — port **3000**
+- **Backend:** NestJS (ESM) + Postgres (`pg`) — port **3000**
 - **Frontend:** React + Vite + TypeScript — port **5173** (proxy `/api` → `localhost:3000`)
 
 ## Prerequisites
 
-- **Node.js 24+** (the backend uses `node:sqlite`, which is experimental and requires Node 24)
+- **Node.js 20+**
+- **A Postgres database.** For local development a free [Neon](https://neon.tech) dev branch or a
+  local Postgres both work — put its connection string in `DATABASE_URL` (see below).
 - A filled-in `backend/.env` (see below)
 - A Google OAuth Client ID (for "Sign in with Google") — create one in the Google Cloud Console
   and add `http://localhost:5173` as an authorized JavaScript origin
@@ -19,6 +21,9 @@ Copy `backend/.env.example` and fill it in. App-level values:
 
 ```env
 PORT=3000
+
+# Postgres connection string (required, locally too)
+DATABASE_URL=postgres://user:pass@host/dbname?sslmode=require
 
 # App-level Steam Web API key (used to read any signed-in user's public library)
 STEAM_API_KEY=
@@ -61,7 +66,7 @@ cd frontend && npm install && npm run dev          # terminal 2
 Then open **http://localhost:5173**.
 
 > First time: sign in (Google or email/password), open **Profile**, connect PSN/Steam, then hit
-> **Sync** to pull your data and store a snapshot in SQLite (`backend/playvault.db`).
+> **Sync** to pull your data and store a snapshot in Postgres.
 
 ## Deploying to production
 
@@ -78,10 +83,43 @@ Set `NODE_ENV=production`. Two things behave differently — both to prevent sil
   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"  # ENCRYPTION_KEY
   ```
 
-- **The database must live on a persistent volume.** SQLite is a single file; by default it's
-  `./playvault.db`, which is lost when the container's filesystem is recycled. Mount a persistent
-  volume and point `DATABASE_PATH` at it (e.g. `DATABASE_PATH=/data/playvault.db`) — the parent
-  directory is created automatically. Back it up regularly (copy the file, or `sqlite3 .backup`).
+- **The database is managed Postgres.** Point `DATABASE_URL` at a hosted Postgres (e.g. a free
+  [Neon](https://neon.tech) project). Because the database lives outside the app, the app itself is
+  stateless and fits free web-service tiers (e.g. Render's free plan). Backups are handled by the
+  Postgres provider.
+
+The backend serves the built frontend (`app.useStaticAssets`), so the whole thing is **one
+service, one origin** — no CORS or reverse proxy needed for the session cookie.
+
+### Free deploy (Render + Neon)
+
+The repo includes a `render.yaml` blueprint. Steps:
+
+1. **Database:** create a free [Neon](https://neon.tech) project and copy its connection string.
+2. **Secrets:** generate a `JWT_SECRET` and `ENCRYPTION_KEY` (commands above) and keep them.
+3. **Google OAuth:** in the Google Cloud Console, add your production URL
+   (`https://<your-app>.onrender.com`) as an authorized JavaScript origin.
+4. **Deploy:** on Render, create a **Blueprint** from this repo (it reads `render.yaml`), then fill
+   in the environment variables it prompts for: `DATABASE_URL`, `JWT_SECRET`, `ENCRYPTION_KEY`,
+   `APP_URL` (the app's own URL), `GOOGLE_CLIENT_ID`, `VITE_GOOGLE_CLIENT_ID` (same value), and the
+   optional `STEAM_API_KEY` / `RAWG_API_KEY`.
+5. **Migrate your data** (optional, if coming from SQLite) — see below.
+
+> `VITE_GOOGLE_CLIENT_ID` is read at **build time** (baked into the frontend bundle), so it must be
+> set as an environment variable before the build runs — the blueprint handles this.
+
+### Migrating existing SQLite data
+
+If you have an older `backend/playvault.db` (this app used SQLite before), copy it into Postgres
+once with the included script:
+
+```bash
+cd backend
+npm run build
+DATABASE_URL="postgres://...he neon url..." node scripts/migrate-sqlite-to-postgres.mjs
+```
+
+It creates the schema if missing and skips rows that already exist, so it's safe to re-run.
 
 ## Useful scripts
 
@@ -105,5 +143,5 @@ running — every endpoint grouped by controller, with request/response details 
 
 - **Switch 2:** the automatic API (nxapi) is blocked by Nintendo, so Switch games are added
   **manually**.
-- The `backend/playvault.db` database stores users, per-user connections, snapshots, beaten flags,
-  ratings and manual entries — it survives between syncs.
+- The Postgres database stores users, per-user connections, snapshots, beaten flags, ratings and
+  manual entries — it survives between syncs.
