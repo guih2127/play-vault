@@ -111,6 +111,7 @@ function App() {
               aria-label={label}
             >
               <Icon />
+              <span className="side-label">{label}</span>
             </button>
           ))}
         </nav>
@@ -126,6 +127,7 @@ function App() {
             <span className={syncing ? 'spin' : undefined}>
               <IconSync />
             </span>
+            <span className="side-label">Sync</span>
           </button>
 
           <button
@@ -141,6 +143,7 @@ function App() {
                 {(user.name ?? user.email ?? '?').slice(0, 1).toUpperCase()}
               </span>
             )}
+            <span className="side-label">Profile</span>
           </button>
 
           <button
@@ -150,6 +153,7 @@ function App() {
             aria-label="Sign out"
           >
             <IconLogout />
+            <span className="side-label">Sign out</span>
           </button>
         </div>
       </aside>

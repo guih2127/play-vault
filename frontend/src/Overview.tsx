@@ -345,7 +345,7 @@ function TrophiesWidget({
         : 'Latest platinums'
 
   return (
-    <div className="widget">
+    <div className="widget widget-trophies">
       <div className="widget-head">
         <span className="widget-title">Trophies earned</span>
         <div className="widget-head-right">
@@ -369,7 +369,7 @@ function TrophiesWidget({
               Steam
             </button>
           </div>
-          <div className="seg">
+          <div className="seg seg-mode">
             <button
               className={`seg-btn ${mode === 'platinums' ? 'seg-active' : ''}`}
               onClick={() => setMode('platinums')}
