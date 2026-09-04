@@ -13,10 +13,10 @@ const SESSION_COOKIE = 'pv_session';
 export class AuthGuard implements CanActivate {
   constructor(private readonly auth: AuthService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<Request & { cookies?: Record<string, string> }>();
     const token = req.cookies?.[SESSION_COOKIE];
-    const user = this.auth.userFromToken(token);
+    const user = await this.auth.userFromToken(token);
     if (!user) throw new UnauthorizedException('Not authenticated');
     (req as AuthedRequest).user = user;
     return true;

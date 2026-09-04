@@ -146,16 +146,18 @@ export class GamesService {
    * getDashboard) to avoid re-reading and re-parsing the snapshot/trophy blobs; they default to
    * a fresh read when omitted.
    */
-  getGames(
+  async getGames(
     userId: number,
-    snap: StoredSnapshot<SnapshotPayload> | null = this.latest(userId),
-    storedTrophies: RecentTrophy[] = this.db.getAllStoredTrophies<RecentTrophy>(userId),
-  ): AggregatedGame[] {
-    const beatenKeys = this.db.getBeatenKeys(userId);
-    const playingKeys = this.db.getPlayingKeys(userId);
-    const ratings = this.db.getRatings(userId);
+    preSnap?: StoredSnapshot<SnapshotPayload> | null,
+    preTrophies?: RecentTrophy[],
+  ): Promise<AggregatedGame[]> {
+    const snap = preSnap !== undefined ? preSnap : await this.latest(userId);
+    const storedTrophies = preTrophies ?? (await this.db.getAllStoredTrophies<RecentTrophy>(userId));
+    const beatenKeys = await this.db.getBeatenKeys(userId);
+    const playingKeys = await this.db.getPlayingKeys(userId);
+    const ratings = await this.db.getRatings(userId);
     const synced = (snap?.data.games ?? []).filter((g) => g.trophySets.length > 0);
-    const all = [...synced, ...this.manualGames(userId)];
+    const all = [...synced, ...(await this.manualGames(userId))];
 
     // Real platinum dates live in the incremental trophy store; map them to each game
     // (indexing by trophy-set title names too, so localized titles like WUCHANG resolve).
@@ -187,12 +189,12 @@ export class GamesService {
     }));
   }
 
-  setRating(userId: number, key: string, rating: number): void {
-    this.db.setRating(userId, key, Math.max(0, Math.min(5, Math.round(rating * 2) / 2)));
+  async setRating(userId: number, key: string, rating: number): Promise<void> {
+    await this.db.setRating(userId, key, Math.max(0, Math.min(5, Math.round(rating * 2) / 2)));
   }
 
-  private manualGames(userId: number): AggregatedGame[] {
-    return this.db.listManualGames(userId).map((row) => ({
+  private async manualGames(userId: number): Promise<AggregatedGame[]> {
+    return (await this.db.listManualGames(userId)).map((row) => ({
       key: `manual:${row.id}`,
       title: row.title,
       platformLabels: [row.platform],
@@ -207,13 +209,13 @@ export class GamesService {
     }));
   }
 
-  setBeaten(userId: number, key: string, beaten: boolean): void {
-    this.db.setBeaten(userId, key, beaten);
-    if (beaten) this.db.setPlaying(userId, key, false);
+  async setBeaten(userId: number, key: string, beaten: boolean): Promise<void> {
+    await this.db.setBeaten(userId, key, beaten);
+    if (beaten) await this.db.setPlaying(userId, key, false);
   }
 
-  setPlaying(userId: number, key: string, playing: boolean): void {
-    this.db.setPlaying(userId, key, playing);
+  async setPlaying(userId: number, key: string, playing: boolean): Promise<void> {
+    await this.db.setPlaying(userId, key, playing);
   }
 
   /**
@@ -221,8 +223,8 @@ export class GamesService {
    * earned trophy, taken from the incremental trophy store. Lets the beaten list be
    * ordered by real completion date across platforms.
    */
-  backfillPsnBeatenDates(userId: number): { updated: number } {
-    const store = this.db.getAllStoredTrophies<RecentTrophy>(userId);
+  async backfillPsnBeatenDates(userId: number): Promise<{ updated: number }> {
+    const store = await this.db.getAllStoredTrophies<RecentTrophy>(userId);
     const lastByKey = new Map<string, string>();
     for (const t of store) {
       if ((t.provider ?? 'psn') !== 'psn' || !t.earnedAt || !t.gameTitle) continue;
@@ -232,17 +234,17 @@ export class GamesService {
     }
 
     let updated = 0;
-    for (const g of this.getGames(userId, undefined, store)) {
+    for (const g of await this.getGames(userId, undefined, store)) {
       if (!g.providers.includes('psn') || !isBeaten(g)) continue;
       const date = lastByKey.get(g.key);
       if (!date) continue;
-      this.db.setBeatenDate(userId, g.key, date);
+      await this.db.setBeatenDate(userId, g.key, date);
       updated++;
     }
     return { updated };
   }
 
-  addManualGame(
+  async addManualGame(
     userId: number,
     input: {
       title?: string;
@@ -251,21 +253,21 @@ export class GamesService {
       coverUrl?: string;
       beaten?: boolean;
     },
-  ): { id: number } {
+  ): Promise<{ id: number }> {
     const title = (input.title ?? '').trim() || 'Untitled';
     const platform = (input.platform ?? '').trim() || 'Switch';
     const playtimeMinutes =
       typeof input.hours === 'number' && input.hours > 0 ? Math.round(input.hours * 60) : null;
     const coverUrl = (input.coverUrl ?? '').trim() || null;
-    const id = this.db.addManualGame(userId, { title, platform, playtimeMinutes, coverUrl });
-    if (input.beaten) this.db.setBeaten(userId, `manual:${id}`, true);
+    const id = await this.db.addManualGame(userId, { title, platform, playtimeMinutes, coverUrl });
+    if (input.beaten) await this.db.setBeaten(userId, `manual:${id}`, true);
     return { id };
   }
 
-  deleteManualGame(userId: number, id: number): void {
-    this.db.deleteManualGame(userId, id);
-    this.db.setBeaten(userId, `manual:${id}`, false);
-    this.db.setPlaying(userId, `manual:${id}`, false);
+  async deleteManualGame(userId: number, id: number): Promise<void> {
+    await this.db.deleteManualGame(userId, id);
+    await this.db.setBeaten(userId, `manual:${id}`, false);
+    await this.db.setPlaying(userId, `manual:${id}`, false);
   }
 
   /**
@@ -273,13 +275,13 @@ export class GamesService {
    * entered by hand; synced games take their playtime from the provider). Returns false if the
    * game doesn't exist for this user. `hours <= 0` clears the playtime.
    */
-  updateManualGameHours(userId: number, id: number, hours: number): boolean {
+  async updateManualGameHours(userId: number, id: number, hours: number): Promise<boolean> {
     const playtimeMinutes = typeof hours === 'number' && hours > 0 ? Math.round(hours * 60) : null;
     return this.db.setManualGamePlaytime(userId, id, playtimeMinutes);
   }
 
-  getBacklog(userId: number): BacklogItem[] {
-    return this.db.listBacklogGames(userId).map((row) => ({
+  async getBacklog(userId: number): Promise<BacklogItem[]> {
+    return (await this.db.listBacklogGames(userId)).map((row) => ({
       id: row.id,
       title: row.title,
       platform: row.platform,
@@ -290,7 +292,7 @@ export class GamesService {
     }));
   }
 
-  addBacklogGame(
+  async addBacklogGame(
     userId: number,
     input: {
       title?: string;
@@ -299,43 +301,44 @@ export class GamesService {
       priority?: number;
       notes?: string;
     },
-  ): { id: number } {
+  ): Promise<{ id: number }> {
     const title = (input.title ?? '').trim() || 'Untitled';
     const platform = (input.platform ?? '').trim() || 'Other';
     const coverUrl = (input.coverUrl ?? '').trim() || null;
     const notes = (input.notes ?? '').trim() || null;
     const priority = clampPriority(input.priority ?? 1);
-    const id = this.db.addBacklogGame(userId, { title, platform, coverUrl, priority, notes });
+    const id = await this.db.addBacklogGame(userId, { title, platform, coverUrl, priority, notes });
     return { id };
   }
 
-  setBacklogPriority(userId: number, id: number, priority: number): void {
-    this.db.setBacklogPriority(userId, id, clampPriority(priority));
+  async setBacklogPriority(userId: number, id: number, priority: number): Promise<void> {
+    await this.db.setBacklogPriority(userId, id, clampPriority(priority));
   }
 
-  deleteBacklogGame(userId: number, id: number): void {
-    this.db.deleteBacklogGame(userId, id);
+  async deleteBacklogGame(userId: number, id: number): Promise<void> {
+    await this.db.deleteBacklogGame(userId, id);
   }
 
   /** Move a backlog item into the library as a manual game ("I started playing"). */
-  startBacklogGame(userId: number, id: number): { id: number } | null {
-    const row = this.db.getBacklogGame(userId, id);
+  async startBacklogGame(userId: number, id: number): Promise<{ id: number } | null> {
+    const row = await this.db.getBacklogGame(userId, id);
     if (!row) return null;
-    const manualId = this.db.addManualGame(userId, {
+    const manualId = await this.db.addManualGame(userId, {
       title: row.title,
       platform: row.platform,
       playtimeMinutes: null,
       coverUrl: row.cover_url,
     });
-    this.db.setPlaying(userId, `manual:${manualId}`, true);
-    this.db.deleteBacklogGame(userId, id);
+    await this.db.setPlaying(userId, `manual:${manualId}`, true);
+    await this.db.deleteBacklogGame(userId, id);
     return { id: manualId };
   }
 
-  getProviderStatuses(
+  async getProviderStatuses(
     userId: number,
-    snap: StoredSnapshot<SnapshotPayload> | null = this.latest(userId),
-  ): ProviderStatus[] {
+    preSnap?: StoredSnapshot<SnapshotPayload> | null,
+  ): Promise<ProviderStatus[]> {
+    const snap = preSnap !== undefined ? preSnap : await this.latest(userId);
     if (snap) return snap.data.providers;
     return this.providers.map((p) => ({
       provider: p.platform,
@@ -345,11 +348,13 @@ export class GamesService {
   }
 
   /** All individual trophies stored so far, most recent first. */
-  getAllTrophies(userId: number): RecentTrophy[] {
+  async getAllTrophies(userId: number): Promise<RecentTrophy[]> {
     // Store titles can be localized (e.g. WUCHANG's Chinese "明末：渊虚之羽"); resolve
     // each to the aggregated game's canonical (English) title so it's consistent everywhere.
-    const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>(userId);
-    const { resolveTitle } = this.titleResolver(this.getGames(userId, undefined, storedTrophies));
+    const storedTrophies = await this.db.getAllStoredTrophies<RecentTrophy>(userId);
+    const { resolveTitle } = this.titleResolver(
+      await this.getGames(userId, undefined, storedTrophies),
+    );
     return storedTrophies
       .map((t) => ({ ...t, provider: t.provider ?? 'psn', gameTitle: resolveTitle(t.gameTitle) }))
       .filter((t) => t.earnedAt)
@@ -378,12 +383,12 @@ export class GamesService {
     return { resolveKey, resolveTitle };
   }
 
-  getDashboard(userId: number): DashboardSummary {
+  async getDashboard(userId: number): Promise<DashboardSummary> {
     // Load the snapshot and trophy store once and thread them through, so the dashboard doesn't
     // re-read/re-parse these blobs in getGames() and getProviderStatuses().
-    const snap = this.latest(userId);
-    const storedTrophies = this.db.getAllStoredTrophies<RecentTrophy>(userId);
-    const games = this.getGames(userId, snap, storedTrophies);
+    const snap = await this.latest(userId);
+    const storedTrophies = await this.db.getAllStoredTrophies<RecentTrophy>(userId);
+    const games = await this.getGames(userId, snap, storedTrophies);
 
     const playtimeMinutes = games.reduce((sum, g) => sum + g.totalPlaytimeMinutes, 0);
     const trophiesEarned = games.reduce(
@@ -394,7 +399,7 @@ export class GamesService {
       (sum, g) => sum + g.trophySets.reduce((s, t) => s + t.total, 0),
       0,
     );
-    const providerStatuses = this.getProviderStatuses(userId, snap);
+    const providerStatuses = await this.getProviderStatuses(userId, snap);
     const platinumEarned = providerStatuses.reduce((sum, p) => sum + (p.platinumEarned ?? 0), 0);
     const platinumTotal = (snap?.data.games ?? []).reduce((sum, g) => sum + g.platinum.total, 0);
 
@@ -419,7 +424,7 @@ export class GamesService {
       .filter((g) => g.playing)
       .sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
 
-    const beatenDates = this.db.getBeatenDates(userId);
+    const beatenDates = await this.db.getBeatenDates(userId);
     const beatenAt = (g: AggregatedGame) => beatenDates.get(g.key) ?? g.lastPlayed ?? '';
     const beatenGames = games
       .filter((g) => isBeaten(g))
@@ -551,7 +556,7 @@ export class GamesService {
         .map((t) => ({ ...t, provider, gameTitle: resolveTitle(t.gameTitle) }));
     const recentTrophies = { psn: latestTrophies('psn'), steam: latestTrophies('steam') };
 
-    const backlog = this.getBacklog(userId);
+    const backlog = await this.getBacklog(userId);
 
     return {
       lastSyncAt: snap?.createdAt ?? null,

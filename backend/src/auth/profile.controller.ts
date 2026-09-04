@@ -36,8 +36,8 @@ export class ProfileController {
   }
 
   @Get()
-  get(@Req() req: AuthedRequest) {
-    const conn = this.db.getConnections(req.user.id);
+  async get(@Req() req: AuthedRequest) {
+    const conn = await this.db.getConnections(req.user.id);
     return {
       user: this.auth.toPublic(req.user),
       connections: { psn: !!conn?.psn_npsso, steam: !!conn?.steam_id },
@@ -46,22 +46,22 @@ export class ProfileController {
   }
 
   @Post('psn')
-  connectPsn(@Req() req: AuthedRequest, @Body() body: ConnectPsnDto) {
+  async connectPsn(@Req() req: AuthedRequest, @Body() body: ConnectPsnDto) {
     const npsso = (body.npsso ?? '').trim();
     if (!npsso) throw new BadRequestException('Enter your PSN NPSSO token');
-    this.db.setPsnNpsso(req.user.id, this.crypto.encrypt(npsso));
+    await this.db.setPsnNpsso(req.user.id, this.crypto.encrypt(npsso));
     return { ok: true };
   }
 
   @Delete('psn')
-  disconnectPsn(@Req() req: AuthedRequest) {
-    this.db.setPsnNpsso(req.user.id, null);
+  async disconnectPsn(@Req() req: AuthedRequest) {
+    await this.db.setPsnNpsso(req.user.id, null);
     return { ok: true };
   }
 
   @Delete('steam')
-  disconnectSteam(@Req() req: AuthedRequest) {
-    this.db.setSteamId(req.user.id, null);
+  async disconnectSteam(@Req() req: AuthedRequest) {
+    await this.db.setSteamId(req.user.id, null);
     return { ok: true };
   }
 
@@ -86,7 +86,7 @@ export class ProfileController {
   ) {
     const steamId = await this.verifySteamOpenId(query);
     if (steamId) {
-      this.db.setSteamId(req.user.id, steamId);
+      await this.db.setSteamId(req.user.id, steamId);
       res.redirect(`${this.appUrl}/?connected=steam`);
     } else {
       res.redirect(`${this.appUrl}/?connected=steam_error`);
