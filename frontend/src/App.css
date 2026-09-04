@@ -62,6 +62,11 @@
     color 0.15s ease;
 }
 
+/* Desktop rail is icon-only; labels only appear in the mobile tab bar. */
+.side-label {
+  display: none;
+}
+
 .side-btn:hover {
   background: var(--surface);
   color: var(--text);
@@ -194,6 +199,15 @@
   min-height: 44px;
   display: flex;
   justify-content: center;
+}
+
+/* The Google (GSI) button renders inside a rectangular, white-background iframe.
+   With shape: 'pill' the iframe's corners peek out as a white border around the
+   pill (most visible while it loads — hence "sometimes"). Round + clip the iframe
+   element itself so it matches the pill and the white corners disappear. */
+.login-btn iframe {
+  border-radius: 20px !important;
+  overflow: hidden;
 }
 
 .login-divider {
@@ -1307,6 +1321,12 @@
   padding: 3px;
   background: rgba(0, 0, 0, 0.28);
   border-radius: 999px;
+}
+
+/* Keep the platinums/trophies toggle a stable width so switching its label
+   ("Platinums" ↔ "100%" for Steam) doesn't shift the whole control cluster. */
+.seg-mode .seg-btn {
+  min-width: 68px;
 }
 
 .seg-btn {
@@ -3223,14 +3243,154 @@
   cursor: default;
 }
 
+/* ============================================================
+   Responsive — tablet down to ~375px phones
+   ============================================================ */
+
+/* Collapse the 2-across widget/chart grids before they get cramped. */
+@media (max-width: 900px) {
+  .widgets {
+    grid-template-columns: 1fr;
+  }
+  .main-inner {
+    padding: 20px 18px 96px;
+  }
+}
+
+/* Phone layout: bottom tab bar, full-width sheets, tighter spacing. */
 @media (max-width: 640px) {
-  .app {
-    padding: 12px 14px 60px;
+  /* --- Shell: the icon rail becomes a sticky top menu bar --- */
+  .layout {
+    flex-direction: column;
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0;
+    padding: 6px 6px;
+    background: var(--bg-2);
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 50;
+  }
+  .sidebar-brand {
+    display: none;
+  }
+  /* Two flex groups sized 4:3 so all 7 tabs end up equal-width. */
+  .sidebar-nav {
+    flex: 4;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 2px;
+  }
+  .sidebar-foot {
+    flex: 3;
+    flex-direction: row;
+    align-items: stretch;
+    gap: 2px;
+    margin-top: 0;
+    padding-top: 0;
+  }
+  /* Icon-only tabs */
+  .side-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    height: 40px;
+    padding: 6px 2px;
+    border-radius: 10px;
+  }
+  .side-label {
+    display: none;
+  }
+  /* Active tab = accent-colored icon + label (no filled block). */
+  .side-btn-active,
+  .side-btn-active:hover {
+    background: none;
+    color: var(--accent-2);
+  }
+  .sidebar-avatar .user-avatar {
+    width: 22px;
+    height: 22px;
+  }
+
+  .main {
+    width: 100%;
+  }
+  .main-inner {
+    padding: 14px 14px 28px;
+  }
+  .back-btn {
+    margin-bottom: 14px;
+  }
+
+  /* --- Overview: hero stats 2x2, denser numbers --- */
+  .stat-item {
+    flex: 1 1 40%;
+    min-width: 0;
+    padding: 16px 10px;
+    border-right: none;
+  }
+  .stat-num {
+    font-size: 26px;
+  }
+
+  /* --- Widget heads: let controls wrap instead of overflow --- */
+  .widget-head-right {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  /* On phones the Overview "Trophies earned" widget hides its provider/mode
+     filters and keeps just the → shortcut, so it reads like the other widgets.
+     (Filtering still lives on the full Trophies page.) */
+  .widget-trophies .seg {
+    display: none;
+  }
+  .seg-btn {
+    padding: 4px 11px;
+  }
+
+  /* --- Library / Backlog: smaller tiles (~3 across on a phone) --- */
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 10px;
+  }
+  .search {
+    min-width: 0;
+    flex-basis: 100%;
+  }
+
+  /* --- Profile providers / chart columns stack --- */
+  .profile-providers,
+  .chart-top-list {
+    grid-template-columns: 1fr;
+  }
+
+  /* --- Modals become full-width bottom sheets --- */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal {
+    width: 100%;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
   }
   .modal-title {
     font-size: 19px;
   }
-  .widgets {
-    grid-template-columns: 1fr;
+  .modal-hero {
+    left: 16px;
+    right: 48px;
+  }
+  .modal-content {
+    padding: 14px 16px 20px;
   }
 }
