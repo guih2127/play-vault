@@ -3249,11 +3249,13 @@
 
 /* Collapse the 2-across widget/chart grids before they get cramped. */
 @media (max-width: 900px) {
+  /* minmax(0, 1fr) — not 1fr — so a widget can shrink below its content
+     width instead of forcing the track (and the page) wider than the screen. */
   .widgets {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .main-inner {
-    padding: 20px 18px 96px;
+    padding: 20px 18px 40px;
   }
 }
 
@@ -3263,6 +3265,17 @@
   html,
   body {
     overflow-x: hidden;
+  }
+  /* Widgets must fit their column: allow them to shrink and clip any content
+     that can't (wide rows, tooltips) to the card instead of the viewport. */
+  .widget {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .dashboard,
+  .dashboard > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   /* --- Shell: the icon rail becomes a sticky top menu bar --- */
