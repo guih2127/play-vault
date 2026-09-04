@@ -3249,16 +3249,35 @@
 
 /* Collapse the 2-across widget/chart grids before they get cramped. */
 @media (max-width: 900px) {
+  /* minmax(0, 1fr) — not 1fr — so a widget can shrink below its content
+     width instead of forcing the track (and the page) wider than the screen. */
   .widgets {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .main-inner {
-    padding: 20px 18px 96px;
+    padding: 20px 18px 40px;
   }
 }
 
 /* Phone layout: bottom tab bar, full-width sheets, tighter spacing. */
 @media (max-width: 640px) {
+  /* Never let a stray-wide child cause a horizontal scroll on phones. */
+  html,
+  body {
+    overflow-x: hidden;
+  }
+  /* Widgets must fit their column: allow them to shrink and clip any content
+     that can't (wide rows, tooltips) to the card instead of the viewport. */
+  .widget {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .dashboard,
+  .dashboard > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   /* --- Shell: the icon rail becomes a sticky top menu bar --- */
   .layout {
     flex-direction: column;
@@ -3355,6 +3374,16 @@
   }
   .seg-btn {
     padding: 4px 11px;
+  }
+  /* ...and drops the stat numbers column, keeping just the trophy list. */
+  .widget-trophies .trophy-stats {
+    display: none;
+  }
+
+  /* Beaten & completed: smaller cover tiles (more per row) on phones. */
+  .mini-grid {
+    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+    gap: 10px;
   }
 
   /* --- Library / Backlog: smaller tiles (~3 across on a phone) --- */
