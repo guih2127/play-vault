@@ -467,11 +467,21 @@
   padding: 9px 18px;
 }
 
-.steam-login {
+.steam-login,
+.xbox-login {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-decoration: none;
+}
+
+.xbox-login {
+  background: #107c10;
+}
+
+.provider-hint-muted {
+  opacity: 0.7;
+  font-style: italic;
 }
 
 .provider-remove {
@@ -829,6 +839,14 @@
   stroke: var(--bg-2);
   stroke-width: 2.5;
   filter: drop-shadow(0 0 6px var(--accent-glow));
+}
+
+/* Xbox is brand-green: re-tint the chart's accent variables so the line,
+   area, dot and glow all follow when the Xbox provider filter is active. */
+.chart-xbox {
+  --accent: #5ec95e;
+  --accent-2: #107c10;
+  --accent-glow: rgba(16, 124, 16, 0.45);
 }
 
 .chart-tooltip {
@@ -1831,6 +1849,9 @@
 .tro-badge.tt-glow-psn {
   box-shadow: 0 0 7px 1px rgba(59, 130, 196, 0.6);
 }
+.tro-badge.tt-glow-xbox {
+  box-shadow: 0 0 7px 1px rgba(16, 124, 16, 0.6);
+}
 
 .tro-icon {
   width: 52px;
@@ -1911,12 +1932,20 @@
   border: 1px solid #3a4a5a;
 }
 
+.src-xbox {
+  background: #107c10;
+}
+
 .tro-icon.tt-glow-steam {
   box-shadow: 0 0 8px 1px rgba(102, 192, 244, 0.5);
 }
 
 .tro-icon.tt-glow-psn {
   box-shadow: 0 0 8px 1px rgba(59, 130, 196, 0.55);
+}
+
+.tro-icon.tt-glow-xbox {
+  box-shadow: 0 0 8px 1px rgba(16, 124, 16, 0.55);
 }
 
 .source-stat {
@@ -2113,6 +2142,11 @@
   background: #1b2838;
   color: #c7d5e0;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.badge-xbox {
+  background: #107c10;
+  color: #fff;
 }
 
 .badge-switch {
@@ -2684,6 +2718,9 @@
 }
 .trophy-modal-icon.tt-glow-psn {
   box-shadow: 0 0 22px 3px rgba(59, 130, 196, 0.6);
+}
+.trophy-modal-icon.tt-glow-xbox {
+  box-shadow: 0 0 22px 3px rgba(16, 124, 16, 0.6);
 }
 
 .trophy-modal-body {

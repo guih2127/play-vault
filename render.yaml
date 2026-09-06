@@ -31,3 +31,7 @@ services:
         sync: false
       - key: RAWG_API_KEY
         sync: false
+      - key: MICROSOFT_CLIENT_ID # Xbox Live OAuth (Azure app registration)
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET # Xbox Live OAuth client secret
+        sync: false

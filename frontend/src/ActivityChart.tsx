@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -9,11 +10,18 @@ import {
 import type { RecentTrophy } from './types'
 
 type Gran = 'day' | 'month' | 'year'
-type Prov = 'all' | 'psn' | 'steam'
+type Prov = 'all' | 'psn' | 'steam' | 'xbox'
 type Range = '30d' | '90d' | '1y' | 'all' | 'custom'
 
 const GRAN_LABEL: Record<Gran, string> = { day: 'Day', month: 'Month', year: 'Year' }
-const PROV_LABEL: Record<Prov, string> = { all: 'All', psn: 'PSN', steam: 'Steam' }
+const PROV_LABEL: Record<Prov, string> = { all: 'All', psn: 'PSN', steam: 'Steam', xbox: 'Xbox' }
+// PSN awards "trophies"; Steam and Xbox award "achievements".
+const PROV_NOUN: Record<Prov, string> = {
+  all: 'trophies',
+  psn: 'trophies',
+  steam: 'achievements',
+  xbox: 'achievements',
+}
 const RANGE_LABEL: Record<Range, string> = {
   '30d': '30d',
   '90d': '90d',
@@ -147,22 +155,30 @@ export function ActivityTab({ tabs, trophies }: { tabs: ReactNode; trophies: Rec
   const [customTo, setCustomTo] = useState('')
   const [hover, setHover] = useState<number | null>(null)
 
-  const plotRef = useRef<HTMLDivElement>(null)
+  const roRef = useRef<ResizeObserver | null>(null)
   const tipRef = useRef<HTMLDivElement>(null)
   // Start at 0 so we render a skeleton until the real width is known — avoids the
   // chart popping in at a default width and then snapping to its container size.
   const [width, setWidth] = useState(0)
   const [tipW, setTipW] = useState(0)
 
-  // Measure before paint so the first painted frame already has the right width.
-  useLayoutEffect(() => {
-    const el = plotRef.current
+  // Attach the ResizeObserver through a callback ref (not a mount-only effect) so it
+  // re-measures whenever the plot element mounts. The plot is unmounted while the empty
+  // state shows (e.g. a provider with no trophies in range), which detaches the node; a
+  // mount-only observer would stay bound to that detached node — it reports width 0 and
+  // would strand the chart on its loading skeleton once data returns. We also ignore 0
+  // widths so a transient detach never blanks a good measurement.
+  const setPlotRef = useCallback((el: HTMLDivElement | null) => {
+    roRef.current?.disconnect()
+    roRef.current = null
     if (!el) return
-    const measure = () => setWidth(el.clientWidth)
-    measure()
-    const ro = new ResizeObserver(measure)
+    setWidth(el.clientWidth)
+    const ro = new ResizeObserver(() => {
+      const w = el.clientWidth
+      if (w > 0) setWidth(w)
+    })
     ro.observe(el)
-    return () => ro.disconnect()
+    roRef.current = ro
   }, [])
 
   // Earliest earned date for the selected provider — the anchor for the "All" range.
@@ -365,15 +381,15 @@ export function ActivityTab({ tabs, trophies }: { tabs: ReactNode; trophies: Rec
         <div className="chart-total">
           <span className="chart-total-num">{total.toLocaleString('en-US')}</span>
           <span className="chart-total-cap">
-            {prov === 'all' ? 'trophies' : `${PROV_LABEL[prov]} trophies`} in this range
+            {prov === 'all' ? 'trophies' : `${PROV_LABEL[prov]} ${PROV_NOUN[prov]}`} in this range
           </span>
         </div>
 
         {total ? (
-          <div className="chart">
+          <div className={`chart ${prov === 'xbox' ? 'chart-xbox' : ''}`}>
             <div
               className="chart-plot"
-              ref={plotRef}
+              ref={setPlotRef}
               onPointerMove={onMove}
               onPointerLeave={() => setHover(null)}
             >

@@ -36,6 +36,8 @@ export class SyncService {
       psnNpsso: this.safeDecrypt(conn?.psn_npsso),
       steamApiKey: this.config.get<string>('STEAM_API_KEY')?.trim() || undefined,
       steamId: conn?.steam_id ?? undefined,
+      xboxRefreshToken: this.safeDecrypt(conn?.xbox_rtoken),
+      xboxXuid: conn?.xbox_xuid ?? undefined,
     };
   }
 
@@ -67,6 +69,14 @@ export class SyncService {
       const known = await this.db.getTrophyTitleState(userId);
       const results = await Promise.all(this.providers.map((p) => p.fetch(creds, known)));
       const providers = results.map((r) => r.status);
+
+      // Persist any credential a provider refreshed (Microsoft rotates the Xbox refresh token).
+      for (const r of results) {
+        const rotated = r.credentialUpdate?.xboxRefreshToken;
+        if (rotated && rotated !== creds.xboxRefreshToken) {
+          await this.db.updateXboxRefreshToken(userId, this.crypto.encrypt(rotated));
+        }
+      }
       const games = mergeGames(results.flatMap((r) => r.games));
       const trophyProfile = results.find((r) => r.trophyProfile)?.trophyProfile;
 

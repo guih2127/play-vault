@@ -1,4 +1,4 @@
-export type Platform = 'psn' | 'steam' | 'switch'
+export type Platform = 'psn' | 'steam' | 'switch' | 'xbox'
 
 export interface User {
   id: number
@@ -84,8 +84,18 @@ export interface TrophyProfile {
   counts: { bronze: number; silver: number; gold: number; platinum: number }
 }
 
+export interface RecentCompletion {
+  key: string
+  title: string
+  name?: string
+  coverUrl?: string
+  platinumIconUrl?: string
+  earnedAt?: string
+  rarity?: number
+}
+
 export interface RecentTrophy {
-  provider: 'psn' | 'steam'
+  provider: 'psn' | 'steam' | 'xbox'
   gameTitle: string
   gameIconUrl?: string
   name: string
@@ -119,28 +129,13 @@ export interface Dashboard {
   mostPlayed: AggregatedGame[]
   playingGames: AggregatedGame[]
   beatenGames: AggregatedGame[]
-  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies }
+  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies; xbox: ProviderTrophies }
   recentPlatinums: {
-    psn: Array<{
-      key: string
-      title: string
-      name?: string
-      coverUrl?: string
-      platinumIconUrl?: string
-      earnedAt?: string
-      rarity?: number
-    }>
-    steam: Array<{
-      key: string
-      title: string
-      name?: string
-      coverUrl?: string
-      platinumIconUrl?: string
-      earnedAt?: string
-      rarity?: number
-    }>
+    psn: RecentCompletion[]
+    steam: RecentCompletion[]
+    xbox: RecentCompletion[]
   }
-  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[] }
+  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[]; xbox: RecentTrophy[] }
   trophyProfile: TrophyProfile | null
   backlogPreview: BacklogItem[]
   backlogCount: number

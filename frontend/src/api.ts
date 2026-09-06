@@ -52,8 +52,10 @@ export async function logout(): Promise<void> {
 
 export interface Profile {
   user: User
-  connections: { psn: boolean; steam: boolean }
+  connections: { psn: boolean; steam: boolean; xbox: boolean }
   steamId: string | null
+  xboxGamertag: string | null
+  xboxConfigured: boolean
 }
 
 export async function getProfile(): Promise<Profile> {
@@ -75,7 +77,7 @@ export async function connectPsn(npsso: string): Promise<void> {
   }
 }
 
-export async function disconnectProvider(provider: 'psn' | 'steam'): Promise<void> {
+export async function disconnectProvider(provider: 'psn' | 'steam' | 'xbox'): Promise<void> {
   const res = await fetch(`/api/profile/${provider}`, { method: 'DELETE', credentials: 'include' })
   if (!res.ok) throw new Error(`Failed to disconnect (${res.status})`)
 }

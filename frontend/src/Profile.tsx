@@ -44,7 +44,68 @@ export function Profile({ user, onChanged }: { user: User; onChanged?: () => voi
       <div className="profile-providers">
         <PsnCard connected={!!data?.connections.psn} onDone={done} />
         <SteamCard connected={!!data?.connections.steam} onDone={done} />
+        <XboxCard
+          connected={!!data?.connections.xbox}
+          configured={data?.xboxConfigured ?? true}
+          gamertag={data?.xboxGamertag ?? null}
+          onDone={done}
+        />
       </div>
+    </div>
+  )
+}
+
+function XboxCard({
+  connected,
+  configured,
+  gamertag,
+  onDone,
+}: {
+  connected: boolean
+  configured: boolean
+  gamertag: string | null
+  onDone: () => void
+}) {
+  const [busy, setBusy] = useState(false)
+
+  const remove = async () => {
+    setBusy(true)
+    try {
+      await disconnectProvider('xbox')
+      onDone()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="provider-card">
+      <div className="provider-card-head">
+        <span className="src-tag src-xbox">Xbox</span>
+        {connected ? (
+          <span className="provider-connected">✓ {gamertag ?? 'Connected'}</span>
+        ) : null}
+      </div>
+      <p className="provider-hint">
+        Sign in with your Microsoft account to sync your Xbox games and achievements — nothing to
+        paste.
+      </p>
+      {configured ? (
+        <div className="provider-actions">
+          <a className="login-submit xbox-login" href="/api/profile/xbox/login">
+            {connected ? 'Reconnect with Microsoft' : 'Sign in with Microsoft'}
+          </a>
+          {connected ? (
+            <button className="provider-remove" onClick={remove} disabled={busy}>
+              Disconnect
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <p className="provider-hint provider-hint-muted">
+          Xbox sign-in isn’t configured on this server (missing Microsoft app credentials).
+        </p>
+      )}
     </div>
   )
 }

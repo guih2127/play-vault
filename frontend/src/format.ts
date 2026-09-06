@@ -27,6 +27,12 @@ export function formatDateTime(iso?: string | null): string {
   })
 }
 
+export function providerLabel(provider: 'psn' | 'steam' | 'xbox'): string {
+  if (provider === 'psn') return 'PlayStation'
+  if (provider === 'xbox') return 'Xbox'
+  return 'Steam'
+}
+
 export function badgeClass(label: string): string {
   const l = label.toLowerCase()
   if (l.includes('ps5')) return 'badge-ps5'
@@ -35,6 +41,7 @@ export function badgeClass(label: string): string {
   if (l.includes('vita')) return 'badge-psvita'
   if (l.includes('switch')) return 'badge-switch'
   if (l.includes('steam')) return 'badge-steam'
+  if (l.includes('xbox')) return 'badge-xbox'
   if (l.includes('pc')) return 'badge-pc'
   return 'badge-default'
 }

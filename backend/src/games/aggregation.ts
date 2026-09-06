@@ -150,7 +150,7 @@ function prettyPlatform(label: string): string {
     .split(',')
     .map((p) => p.trim().toUpperCase())
     .filter((p) => p && p !== 'PSPC')
-    .map((p) => (p === 'PSVITA' ? 'PS Vita' : p === 'STEAM' ? 'Steam' : p))
+    .map((p) => (p === 'PSVITA' ? 'PS Vita' : p === 'STEAM' ? 'Steam' : p === 'XBOX' ? 'Xbox' : p))
     .join('/');
 }
 

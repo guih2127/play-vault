@@ -25,7 +25,7 @@ const GRID_MIN = 150
 const GRID_GAP = 12
 const GRID_ROWS = 3
 const HOME_LIMIT = 5
-import { badgeClass, formatDate, formatNumber } from './format'
+import { badgeClass, formatDate, formatNumber, providerLabel } from './format'
 
 interface PlatItem {
   key: string
@@ -35,7 +35,7 @@ interface PlatItem {
   earnedAt?: string
   platinumIconUrl?: string
   rarity?: number
-  provider: 'psn' | 'steam'
+  provider: 'psn' | 'steam' | 'xbox'
 }
 
 const PRIORITY_LABEL: Record<number, { label: string; cls: string }> = {
@@ -310,7 +310,7 @@ function TrophiesWidget({
   onOpenTrophy,
   onGoTrophies,
 }: {
-  trophies: { psn: ProviderTrophies; steam: ProviderTrophies }
+  trophies: { psn: ProviderTrophies; steam: ProviderTrophies; xbox: ProviderTrophies }
   platinums: Dashboard['recentPlatinums']
   trophiesList: Dashboard['recentTrophies']
   gamesByKey: Record<string, AggregatedGame>
@@ -318,35 +318,48 @@ function TrophiesWidget({
   onOpenTrophy: (trophy: RecentTrophy) => void
   onGoTrophies: () => void
 }) {
-  const [provider, setProvider] = useState<'all' | 'psn' | 'steam'>('all')
+  const [provider, setProvider] = useState<'all' | 'psn' | 'steam' | 'xbox'>('all')
   const [mode, setMode] = useState<'platinums' | 'trophies'>('platinums')
 
-  const byDate = <T extends { earnedAt?: string }>(a: T[], b: T[]) =>
-    [...a, ...b].sort((x, y) => (y.earnedAt ?? '').localeCompare(x.earnedAt ?? ''))
+  const byDateAll = <T extends { earnedAt?: string }>(...lists: T[][]) =>
+    lists.flat().sort((x, y) => (y.earnedAt ?? '').localeCompare(x.earnedAt ?? ''))
+
+  const sumTrophies = (keys: Array<'psn' | 'steam' | 'xbox'>): ProviderTrophies =>
+    keys.reduce(
+      (acc, k) => ({
+        earned: acc.earned + trophies[k].earned,
+        total: acc.total + trophies[k].total,
+        platinumEarned: acc.platinumEarned + trophies[k].platinumEarned,
+        platinumTotal: acc.platinumTotal + trophies[k].platinumTotal,
+        gamesWithTrophies: acc.gamesWithTrophies + trophies[k].gamesWithTrophies,
+        beaten: acc.beaten + trophies[k].beaten,
+      }),
+      { earned: 0, total: 0, platinumEarned: 0, platinumTotal: 0, gamesWithTrophies: 0, beaten: 0 },
+    )
 
   const t: ProviderTrophies =
-    provider === 'all'
-      ? {
-          earned: trophies.psn.earned + trophies.steam.earned,
-          total: trophies.psn.total + trophies.steam.total,
-          platinumEarned: trophies.psn.platinumEarned + trophies.steam.platinumEarned,
-          platinumTotal: trophies.psn.platinumTotal + trophies.steam.platinumTotal,
-          gamesWithTrophies: trophies.psn.gamesWithTrophies + trophies.steam.gamesWithTrophies,
-          beaten: trophies.psn.beaten + trophies.steam.beaten,
-        }
-      : trophies[provider]
+    provider === 'all' ? sumTrophies(['psn', 'steam', 'xbox']) : trophies[provider]
   const platsPsn: PlatItem[] = platinums.psn.map((p) => ({ ...p, provider: 'psn' }))
   const platsSteam: PlatItem[] = platinums.steam.map((p) => ({ ...p, provider: 'steam' }))
+  const platsXbox: PlatItem[] = platinums.xbox.map((p) => ({ ...p, provider: 'xbox' }))
   const plats =
-    provider === 'all' ? byDate(platsPsn, platsSteam) : provider === 'psn' ? platsPsn : platsSteam
+    provider === 'all'
+      ? byDateAll(platsPsn, platsSteam, platsXbox)
+      : provider === 'psn'
+        ? platsPsn
+        : provider === 'steam'
+          ? platsSteam
+          : platsXbox
   const tros =
-    provider === 'all' ? byDate(trophiesList.psn, trophiesList.steam) : trophiesList[provider]
-  const showPlat = provider !== 'steam'
+    provider === 'all'
+      ? byDateAll(trophiesList.psn, trophiesList.steam, trophiesList.xbox)
+      : trophiesList[provider]
+  const showPlat = provider === 'psn' || provider === 'all'
 
   const listHead =
     mode === 'trophies'
       ? 'Latest trophies'
-      : provider === 'steam'
+      : provider === 'steam' || provider === 'xbox'
         ? 'Latest 100%'
         : 'Latest platinums'
 
@@ -374,13 +387,19 @@ function TrophiesWidget({
             >
               Steam
             </button>
+            <button
+              className={`seg-btn ${provider === 'xbox' ? 'seg-active' : ''}`}
+              onClick={() => setProvider('xbox')}
+            >
+              Xbox
+            </button>
           </div>
           <div className="seg seg-mode">
             <button
               className={`seg-btn ${mode === 'platinums' ? 'seg-active' : ''}`}
               onClick={() => setMode('platinums')}
             >
-              {provider === 'steam' ? '100%' : 'Platinums'}
+              {provider === 'steam' || provider === 'xbox' ? '100%' : 'Platinums'}
             </button>
             <button
               className={`seg-btn ${mode === 'trophies' ? 'seg-active' : ''}`}
@@ -435,7 +454,7 @@ function TrophiesWidget({
             </div>
           ) : (
             <div className="widget-empty">
-              No {provider === 'steam' ? '100% games' : 'platinums'} yet.
+              No {provider === 'steam' || provider === 'xbox' ? '100% games' : 'platinums'} yet.
             </div>
           )}
         </div>
@@ -446,7 +465,7 @@ function TrophiesWidget({
 
 function PlatinumMiniRow({ p, onOpen }: { p: PlatItem; onOpen?: () => void }) {
   const label = p.name ?? (p.provider === 'psn' ? 'Platinum' : '100% completed')
-  const glow = p.provider === 'psn' ? 'platinum' : 'steam'
+  const glow = p.provider === 'psn' ? 'platinum' : p.provider
   const inner = (
     <>
       <div className="tro-thumb">
@@ -471,9 +490,7 @@ function PlatinumMiniRow({ p, onOpen }: { p: PlatItem; onOpen?: () => void }) {
           {p.earnedAt ? ` · ${formatDate(p.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <span className={`src-tag src-${p.provider}`}>
-            {p.provider === 'psn' ? 'PlayStation' : 'Steam'}
-          </span>
+          <span className={`src-tag src-${p.provider}`}>{providerLabel(p.provider)}</span>
           {p.rarity != null ? <span className="tro-rarity">{p.rarity}%</span> : null}
         </span>
       </div>
@@ -519,9 +536,7 @@ function TrophyMiniRow({ tr, onOpen }: { tr: RecentTrophy; onOpen: () => void })
           {tr.earnedAt ? ` · ${formatDate(tr.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <span className={`src-tag src-${tr.provider}`}>
-            {tr.provider === 'psn' ? 'PlayStation' : 'Steam'}
-          </span>
+          <span className={`src-tag src-${tr.provider}`}>{providerLabel(tr.provider)}</span>
           {tr.rarity != null ? <span className="tro-rarity">{tr.rarity}%</span> : null}
         </span>
       </div>

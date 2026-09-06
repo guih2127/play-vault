@@ -11,14 +11,14 @@ import type { AggregatedGame, Dashboard, RecentTrophy } from './types'
 import { GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
 import { ActivityTab } from './ActivityChart'
-import { formatDate, formatNumber } from './format'
+import { formatDate, formatNumber, providerLabel } from './format'
 
 const TROPHIES_PER_PAGE = 10
 const PLATINUMS_PER_PAGE = 10
 
 interface Completion {
   key: string
-  provider: 'psn' | 'steam'
+  provider: 'psn' | 'steam' | 'xbox'
   title: string
   name?: string
   coverUrl?: string
@@ -107,7 +107,8 @@ export function TrophiesPage({
   const completions = useMemo<Completion[]>(() => {
     const psn = meta.recentPlatinums.psn.map((x) => ({ ...x, provider: 'psn' as const }))
     const steam = meta.recentPlatinums.steam.map((x) => ({ ...x, provider: 'steam' as const }))
-    return [...psn, ...steam]
+    const xbox = meta.recentPlatinums.xbox.map((x) => ({ ...x, provider: 'xbox' as const }))
+    return [...psn, ...steam, ...xbox]
   }, [meta])
 
   const completionSorts: SortOption<Completion>[] = [
@@ -132,6 +133,7 @@ export function TrophiesPage({
     { key: 'all', label: 'All', predicate: () => true },
     { key: 'psn', label: 'PlayStation', predicate: (t) => t.provider === 'psn' },
     { key: 'steam', label: 'Steam', predicate: (t) => t.provider === 'steam' },
+    { key: 'xbox', label: 'Xbox', predicate: (t) => t.provider === 'xbox' },
   ]
 
   return (
@@ -149,6 +151,13 @@ export function TrophiesPage({
           cls="src-steam"
           earned={meta.trophiesByProvider.steam.earned}
           games={meta.trophiesByProvider.steam.gamesWithTrophies}
+          unit="achievements"
+        />
+        <SourceStat
+          name="Xbox"
+          cls="src-xbox"
+          earned={meta.trophiesByProvider.xbox.earned}
+          games={meta.trophiesByProvider.xbox.gamesWithTrophies}
           unit="achievements"
         />
       </div>
@@ -205,7 +214,7 @@ export function TrophiesPage({
               render={(c, i) => {
                 const clickable = !!games[c.key]
                 const label = c.name ?? (c.provider === 'psn' ? 'Platinum' : '100% completed')
-                const glow = c.provider === 'psn' ? 'platinum' : 'steam'
+                const glow = c.provider === 'psn' ? 'platinum' : c.provider
                 const inner = (
                   <>
                     <div className="tro-thumb">
@@ -234,7 +243,7 @@ export function TrophiesPage({
                     </div>
                     <div className="tro-meta">
                       <span className={`src-tag src-${c.provider}`}>
-                        {c.provider === 'psn' ? 'PlayStation' : 'Steam'}
+                        {providerLabel(c.provider)}
                       </span>
                       {c.rarity != null ? <span className="tro-rarity">{c.rarity}%</span> : null}
                     </div>
@@ -446,9 +455,7 @@ function TrophyRow({ t, onOpen }: { t: RecentTrophy; onOpen: () => void }) {
         </div>
       </div>
       <div className="tro-meta">
-        <span className={`src-tag src-${t.provider}`}>
-          {t.provider === 'psn' ? 'PlayStation' : 'Steam'}
-        </span>
+        <span className={`src-tag src-${t.provider}`}>{providerLabel(t.provider)}</span>
         {t.rarity != null ? <span className="tro-rarity">{t.rarity}%</span> : null}
       </div>
     </button>
