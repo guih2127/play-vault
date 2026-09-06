@@ -33,10 +33,29 @@ export class SyncService {
   private async resolveCredentials(userId: number): Promise<ProviderCredentials> {
     const conn = await this.db.getConnections(userId);
     return {
-      psnNpsso: conn?.psn_npsso ? this.crypto.decrypt(conn.psn_npsso) : undefined,
+      psnNpsso: this.safeDecrypt(conn?.psn_npsso),
       steamApiKey: this.config.get<string>('STEAM_API_KEY')?.trim() || undefined,
       steamId: conn?.steam_id ?? undefined,
     };
+  }
+
+  /**
+   * Decrypt a stored secret, tolerating failure. A token encrypted with a
+   * different ENCRYPTION_KEY (e.g. migrated data, or a rotated key) makes
+   * AES-GCM throw; swallowing it here keeps one bad credential from failing
+   * the whole sync — the provider just reports as not connected, and the user
+   * can reconnect to re-encrypt with the current key.
+   */
+  private safeDecrypt(enc: string | null | undefined): string | undefined {
+    if (!enc) return undefined;
+    try {
+      return this.crypto.decrypt(enc);
+    } catch {
+      this.logger.warn(
+        'Could not decrypt a stored credential (ENCRYPTION_KEY mismatch?); treating it as not connected. Reconnect the account to fix.',
+      );
+      return undefined;
+    }
   }
 
   async sync(userId: number): Promise<SyncResult> {
