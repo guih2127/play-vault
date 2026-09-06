@@ -136,7 +136,7 @@ export function UserProfile({ currentUserId }: { currentUserId: number }) {
       ) : meta ? (
         <TrophiesPage meta={meta} userId={userId} readOnly onRefresh={loadMeta} />
       ) : (
-        <div className="state">Loading…</div>
+        <LoadingState />
       )}
     </div>
   )

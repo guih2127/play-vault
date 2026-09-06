@@ -10,6 +10,7 @@ import {
 import type { AggregatedGame, Dashboard, RecentTrophy } from './types'
 import { GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
+import { LoadingState } from './components/Spinner'
 import { ActivityTab } from './ActivityChart'
 import { formatDate, formatNumber, providerLabel } from './format'
 
@@ -163,9 +164,7 @@ export function TrophiesPage({
       </div>
 
       {loading ? (
-        <div className="widget-empty" style={{ padding: '20px' }}>
-          Loading trophies…
-        </div>
+        <LoadingState label="Loading trophies…" />
       ) : error ? (
         <div className="state state-error">{error}</div>
       ) : (

@@ -115,9 +115,18 @@ export class XboxProvider implements GameProvider {
     return titles.filter((t) => (t.achievement?.totalAchievements ?? 0) > 0);
   }
 
+  /**
+   * Xbox Live serves many image URLs over plain http; on our https deployment the browser
+   * blocks those as mixed content and covers/icons silently fail to load. Upgrade to https
+   * (the same hosts serve https fine).
+   */
+  private httpsify(url?: string): string | undefined {
+    return url?.startsWith('http://') ? 'https://' + url.slice('http://'.length) : url;
+  }
+
   private coverFor(t: XboxTitle): string | undefined {
     const boxart = t.images?.find((i) => i.type === 'BoxArt' || i.type === 'Poster');
-    return boxart?.url ?? t.displayImage;
+    return this.httpsify(boxart?.url ?? t.displayImage);
   }
 
   private toNormalizedGame(t: XboxTitle): NormalizedGame {
@@ -215,7 +224,7 @@ export class XboxProvider implements GameProvider {
       const out: RecentTrophy[] = [];
       for (const a of achievements) {
         if (a.progressState !== 'Achieved') continue;
-        const icon = (a.mediaAssets ?? []).find((m: any) => m.type === 'Icon')?.url;
+        const icon = this.httpsify((a.mediaAssets ?? []).find((m: any) => m.type === 'Icon')?.url);
         const pct = a.rarity?.currentPercentage;
         out.push({
           provider: 'xbox',
