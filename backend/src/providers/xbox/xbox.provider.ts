@@ -116,12 +116,19 @@ export class XboxProvider implements GameProvider {
   }
 
   /**
-   * Xbox Live serves many image URLs over plain http; on our https deployment the browser
-   * blocks those as mixed content and covers/icons silently fail to load. Upgrade to https
-   * (the same hosts serve https fine).
+   * Make an Xbox Live image URL usable from our https deployment. Titlehub returns image URLs
+   * on `http://images-eds.xboxlive.com`, which the browser blocks as mixed content — and its
+   * plain-https variant serves a certificate that doesn't match the host (also blocked). Xbox
+   * exposes the same CDN under a dedicated SSL host (`images-eds-ssl.xboxlive.com`) with a valid
+   * certificate, so rewrite to that; upgrade any other http URL to https as a fallback.
    */
   private httpsify(url?: string): string | undefined {
-    return url?.startsWith('http://') ? 'https://' + url.slice('http://'.length) : url;
+    if (!url) return undefined;
+    const ssl = url.replace(
+      /^https?:\/\/images-eds\.xboxlive\.com/,
+      'https://images-eds-ssl.xboxlive.com',
+    );
+    return ssl.startsWith('http://') ? 'https://' + ssl.slice('http://'.length) : ssl;
   }
 
   private coverFor(t: XboxTitle): string | undefined {
