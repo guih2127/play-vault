@@ -1,4 +1,15 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import {
+  BrowserRouter,
+  NavLink,
+  Navigate,
+  Outlet,
+  Route,
+  Routes,
+  useNavigate,
+  useOutletContext,
+  useSearchParams,
+} from 'react-router-dom'
 import './App.css'
 import { fetchDashboard, getMe, logout, syncNow } from './api'
 import type { Dashboard, User } from './types'
@@ -9,31 +20,151 @@ import { Overview } from './Overview'
 import { Library } from './Library'
 import { Backlog } from './Backlog'
 import { TrophiesPage } from './TrophiesPage'
-import { IconOverview, IconLibrary, IconBacklog, IconTrophy, IconSync, IconLogout } from './icons'
-
-type View = 'overview' | 'library' | 'backlog' | 'trophies' | 'profile'
+import { Users } from './Users'
+import { UserProfile } from './UserProfile'
+import { LoadingState } from './components/Spinner'
+import {
+  IconOverview,
+  IconLibrary,
+  IconBacklog,
+  IconTrophy,
+  IconUsers,
+  IconSync,
+  IconLogout,
+} from './icons'
 
 const NAV_ITEMS: Array<{
-  key: View
+  to: string
   label: string
   Icon: (props: { size?: number }) => ReactNode
 }> = [
-  { key: 'overview', label: 'Overview', Icon: IconOverview },
-  { key: 'library', label: 'Library', Icon: IconLibrary },
-  { key: 'backlog', label: 'Backlog', Icon: IconBacklog },
-  { key: 'trophies', label: 'Trophies', Icon: IconTrophy },
+  { to: '/', label: 'Overview', Icon: IconOverview },
+  { to: '/library', label: 'Library', Icon: IconLibrary },
+  { to: '/backlog', label: 'Backlog', Icon: IconBacklog },
+  { to: '/trophies', label: 'Trophies', Icon: IconTrophy },
+  { to: '/users', label: 'Users', Icon: IconUsers },
 ]
 
-function App() {
-  const [user, setUser] = useState<User | null>(null)
-  const [authChecked, setAuthChecked] = useState(false)
+// Shared state handed to routed pages: `refreshKey` bumps whenever a sync completes so pages
+// re-fetch their data, and `user` identifies the logged-in viewer.
+interface AppContext {
+  refreshKey: number
+  user: User
+}
+
+export function useAppContext(): AppContext {
+  return useOutletContext<AppContext>()
+}
+
+function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+
+  // The Steam OpenID callback redirects back with ?connected=… — send the user to their profile.
+  useEffect(() => {
+    if (params.get('connected')) navigate('/profile', { replace: true })
+  }, [params, navigate])
+
+  // Track last sync time for the tooltip without an extra request on every page.
+  useEffect(() => {
+    fetchDashboard()
+      .then((d) => setLastSyncAt(d.lastSyncAt))
+      .catch(() => {})
+  }, [refreshKey])
+
+  const runSync = useCallback(async () => {
+    setSyncing(true)
+    setError(null)
+    try {
+      await syncNow()
+      setRefreshKey((k) => k + 1)
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
+
+  return (
+    <div className="layout">
+      <aside className="sidebar">
+        <div className="sidebar-brand">P</div>
+
+        <nav className="sidebar-nav">
+          {NAV_ITEMS.map(({ to, label, Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) => `side-btn ${isActive ? 'side-btn-active' : ''}`}
+              title={label}
+              aria-label={label}
+            >
+              <Icon />
+              <span className="side-label">{label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="sidebar-foot">
+          <button
+            className="side-btn"
+            onClick={runSync}
+            disabled={syncing}
+            title={`Sync${lastSyncAt ? ` · last: ${formatDateTime(lastSyncAt)}` : ''}`}
+            aria-label="Sync"
+          >
+            <span className={syncing ? 'spin' : undefined}>
+              <IconSync />
+            </span>
+            <span className="side-label">Sync</span>
+          </button>
+
+          <NavLink
+            to="/profile"
+            className={({ isActive }) =>
+              `side-btn sidebar-avatar ${isActive ? 'side-btn-active' : ''}`
+            }
+            title="Profile"
+            aria-label="Profile"
+          >
+            {user.picture ? (
+              <img className="user-avatar" src={user.picture} alt="" referrerPolicy="no-referrer" />
+            ) : (
+              <span className="user-avatar user-avatar-empty">
+                {(user.name ?? user.email ?? '?').slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="side-label">Profile</span>
+          </NavLink>
+
+          <button className="side-btn" onClick={onLogout} title="Sign out" aria-label="Sign out">
+            <IconLogout />
+            <span className="side-label">Sign out</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="main">
+        <div className="main-inner">
+          {error ? <div className="banner-error">{error}</div> : null}
+          <Outlet context={{ refreshKey, user } satisfies AppContext} />
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function Home() {
+  const { refreshKey } = useAppContext()
   const [meta, setMeta] = useState<Dashboard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const [view, setView] = useState<View>('overview')
-  const [libraryStatus, setLibraryStatus] = useState<'all' | 'beaten' | 'playing'>('all')
+  const navigate = useNavigate()
 
   const load = useCallback(async () => {
     try {
@@ -47,160 +178,104 @@ function App() {
   }, [])
 
   useEffect(() => {
+    void load()
+  }, [load, refreshKey])
+
+  if (loading) return <LoadingState />
+  if (error && !meta) return <div className="state state-error">{error}</div>
+  if (!meta) return null
+
+  return (
+    <Overview
+      meta={meta}
+      onRefresh={load}
+      onGoBacklog={() => navigate('/backlog')}
+      onGoLibrary={() => navigate('/library')}
+      onGoPlaying={() => navigate('/library?status=playing')}
+      onGoTrophies={() => navigate('/trophies')}
+    />
+  )
+}
+
+function LibraryPage() {
+  const { refreshKey } = useAppContext()
+  const [params] = useSearchParams()
+  const status = params.get('status')
+  return (
+    <Library
+      refreshKey={refreshKey}
+      initialStatus={status === 'playing' || status === 'beaten' ? status : 'all'}
+    />
+  )
+}
+
+function BacklogPage() {
+  const { refreshKey } = useAppContext()
+  return <Backlog refreshKey={refreshKey} />
+}
+
+function TrophiesRoute() {
+  const { refreshKey } = useAppContext()
+  const [meta, setMeta] = useState<Dashboard | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setMeta(await fetchDashboard())
+      setError(null)
+    } catch (e) {
+      setError((e as Error).message)
+    }
+  }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load, refreshKey])
+
+  if (error && !meta) return <div className="state state-error">{error}</div>
+  if (!meta) return <LoadingState />
+  return <TrophiesPage meta={meta} onRefresh={load} />
+}
+
+function ProfileRoute() {
+  const { user } = useAppContext()
+  return <Profile user={user} />
+}
+
+function App() {
+  const [user, setUser] = useState<User | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+
+  useEffect(() => {
     getMe()
       .then(setUser)
       .catch(() => setUser(null))
       .finally(() => setAuthChecked(true))
   }, [])
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('connected')) {
-      setView('profile')
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (user) void load()
-  }, [load, user])
-
   const handleLogout = useCallback(async () => {
     await logout()
     setUser(null)
-    setMeta(null)
-    setLoading(true)
   }, [])
 
-  const runSync = useCallback(async () => {
-    setSyncing(true)
-    setError(null)
-    try {
-      await syncNow()
-      await load()
-      setRefreshKey((k) => k + 1)
-    } catch (e) {
-      setError((e as Error).message)
-    } finally {
-      setSyncing(false)
-    }
-  }, [load])
-
-  if (!authChecked) return <div className="state">Loading…</div>
+  if (!authChecked) return <LoadingState />
   if (!user) return <Login onSuccess={setUser} />
-  if (loading) return <div className="state">Loading…</div>
-  if (error && !meta) return <div className="state state-error">{error}</div>
-  if (!meta) return null
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
-        <div className="sidebar-brand">P</div>
-
-        <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              className={`side-btn ${view === key ? 'side-btn-active' : ''}`}
-              onClick={() => {
-                if (key === 'overview') void load()
-                if (key === 'library') setLibraryStatus('all')
-                setView(key)
-              }}
-              title={label}
-              aria-label={label}
-            >
-              <Icon />
-              <span className="side-label">{label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="sidebar-foot">
-          <button
-            className="side-btn"
-            onClick={runSync}
-            disabled={syncing}
-            title={`Sync${meta.lastSyncAt ? ` · last: ${formatDateTime(meta.lastSyncAt)}` : ''}`}
-            aria-label="Sync"
-          >
-            <span className={syncing ? 'spin' : undefined}>
-              <IconSync />
-            </span>
-            <span className="side-label">Sync</span>
-          </button>
-
-          <button
-            className={`side-btn sidebar-avatar ${view === 'profile' ? 'side-btn-active' : ''}`}
-            onClick={() => setView('profile')}
-            title="Profile"
-            aria-label="Profile"
-          >
-            {user.picture ? (
-              <img className="user-avatar" src={user.picture} alt="" referrerPolicy="no-referrer" />
-            ) : (
-              <span className="user-avatar user-avatar-empty">
-                {(user.name ?? user.email ?? '?').slice(0, 1).toUpperCase()}
-              </span>
-            )}
-            <span className="side-label">Profile</span>
-          </button>
-
-          <button
-            className="side-btn"
-            onClick={handleLogout}
-            title="Sign out"
-            aria-label="Sign out"
-          >
-            <IconLogout />
-            <span className="side-label">Sign out</span>
-          </button>
-        </div>
-      </aside>
-
-      <main className="main">
-        <div className="main-inner">
-          {view !== 'overview' ? (
-            <button
-              className="back-btn"
-              onClick={() => {
-                void load()
-                setView('overview')
-              }}
-            >
-              ← Dashboard
-            </button>
-          ) : null}
-
-          {error ? <div className="banner-error">{error}</div> : null}
-
-          {view === 'overview' ? (
-            <Overview
-              meta={meta}
-              onRefresh={load}
-              onGoBacklog={() => setView('backlog')}
-              onGoLibrary={() => {
-                setLibraryStatus('all')
-                setView('library')
-              }}
-              onGoPlaying={() => {
-                setLibraryStatus('playing')
-                setView('library')
-              }}
-              onGoTrophies={() => setView('trophies')}
-            />
-          ) : view === 'library' ? (
-            <Library refreshKey={refreshKey} initialStatus={libraryStatus} />
-          ) : view === 'backlog' ? (
-            <Backlog refreshKey={refreshKey} />
-          ) : view === 'profile' ? (
-            <Profile user={user} onChanged={load} />
-          ) : (
-            <TrophiesPage meta={meta} onRefresh={load} />
-          )}
-        </div>
-      </main>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout user={user} onLogout={handleLogout} />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/library" element={<LibraryPage />} />
+          <Route path="/backlog" element={<BacklogPage />} />
+          <Route path="/trophies" element={<TrophiesRoute />} />
+          <Route path="/profile" element={<ProfileRoute />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/users/:id" element={<UserProfile currentUserId={user.id} />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
   )
 }
 

@@ -51,6 +51,8 @@ export function Overview({
   onGoLibrary,
   onGoPlaying,
   onGoTrophies,
+  userId,
+  readOnly = false,
 }: {
   meta: Dashboard
   onRefresh: () => void | Promise<void>
@@ -58,6 +60,8 @@ export function Overview({
   onGoLibrary: () => void
   onGoPlaying: () => void
   onGoTrophies: () => void
+  userId?: number
+  readOnly?: boolean
 }) {
   const heroImage =
     meta.playingGames[0]?.coverUrl ?? meta.mostPlayed[0]?.coverUrl ?? meta.beatenGames[0]?.coverUrl
@@ -68,10 +72,10 @@ export function Overview({
   const [gamesByKey, setGamesByKey] = useState<Record<string, AggregatedGame>>({})
 
   useEffect(() => {
-    fetchGames()
+    fetchGames(userId)
       .then((list) => setGamesByKey(Object.fromEntries(list.map((g) => [g.key, g]))))
       .catch(() => {})
-  }, [meta])
+  }, [meta, userId])
 
   const openByKey = (key: string) => {
     const g = gamesByKey[key]
@@ -178,6 +182,7 @@ export function Overview({
           onRate={gRate}
           onDelete={gDelete}
           onUpdateHours={gUpdateHours}
+          readOnly={readOnly}
         />
       ) : null}
 
@@ -188,6 +193,7 @@ export function Overview({
           onPriority={bPriority}
           onStart={bStart}
           onDelete={bDelete}
+          readOnly={readOnly}
         />
       ) : null}
 

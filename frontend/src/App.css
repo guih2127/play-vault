@@ -160,6 +160,35 @@
   color: #ff7b7b;
 }
 
+.loading-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation: fade-in 0.2s ease;
+}
+
+.spinner {
+  color: var(--accent-2);
+}
+
+/* Smooth the swap from a loading state (or previous route) to real content. */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dashboard,
+.library {
+  animation: fade-in 0.24s ease;
+}
+
 .login-screen {
   min-height: 100vh;
   display: flex;
@@ -3302,9 +3331,9 @@
   .sidebar-brand {
     display: none;
   }
-  /* Two flex groups sized 4:3 so all 7 tabs end up equal-width. */
+  /* Two flex groups sized 5:3 so all 8 tabs end up equal-width. */
   .sidebar-nav {
-    flex: 4;
+    flex: 5;
     flex-direction: row;
     align-items: stretch;
     gap: 2px;
@@ -3422,4 +3451,90 @@
   .modal-content {
     padding: 14px 16px 20px;
   }
+}
+
+/* --- Users list --- */
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.user-card:hover {
+  border-color: var(--accent-2);
+  transform: translateY(-2px);
+}
+
+.user-card-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.user-card-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.user-card-info {
+  min-width: 0;
+}
+
+.user-card-name {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-card-you {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-2);
+  background: color-mix(in srgb, var(--accent-2) 15%, transparent);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.user-card-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* --- Other user's profile --- */
+.profile-tags {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.profile-tabs {
+  margin-bottom: 20px;
 }

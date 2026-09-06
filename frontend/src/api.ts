@@ -80,21 +80,55 @@ export async function disconnectProvider(provider: 'psn' | 'steam'): Promise<voi
   if (!res.ok) throw new Error(`Failed to disconnect (${res.status})`)
 }
 
-export async function fetchDashboard(): Promise<Dashboard> {
-  const res = await fetch('/api/dashboard')
+// Read endpoints accept an optional userId to view another user's public data. When omitted
+// they hit the self-scoped routes; when given they hit the read-only /users/:id/* routes.
+function readPath(base: string, userId?: number): string {
+  return userId != null ? `/api/users/${userId}/${base}` : `/api/${base}`
+}
+
+export async function fetchDashboard(userId?: number): Promise<Dashboard> {
+  const res = await fetch(readPath('dashboard', userId))
   if (!res.ok) throw new Error(`Failed to load dashboard (${res.status})`)
   return res.json()
 }
 
-export async function fetchGames(): Promise<AggregatedGame[]> {
-  const res = await fetch('/api/games')
+export async function fetchGames(userId?: number): Promise<AggregatedGame[]> {
+  const res = await fetch(readPath('games', userId))
   if (!res.ok) throw new Error(`Failed to load games (${res.status})`)
   return res.json()
 }
 
-export async function fetchTrophies(): Promise<RecentTrophy[]> {
-  const res = await fetch('/api/trophies')
+export async function fetchTrophies(userId?: number): Promise<RecentTrophy[]> {
+  const res = await fetch(readPath('trophies', userId))
   if (!res.ok) throw new Error(`Failed to load trophies (${res.status})`)
+  return res.json()
+}
+
+export interface UserListItem {
+  id: number
+  email: string | null
+  name: string | null
+  picture: string | null
+  createdAt: string
+  isSelf: boolean
+}
+
+export interface UserProfileData {
+  user: User
+  createdAt: string
+  connections: { psn: boolean; steam: boolean }
+}
+
+export async function listUsers(): Promise<UserListItem[]> {
+  const res = await fetch('/api/users', { credentials: 'include' })
+  if (!res.ok) throw new Error(`Failed to load users (${res.status})`)
+  return res.json()
+}
+
+export async function getUserProfile(userId: number): Promise<UserProfileData> {
+  const res = await fetch(`/api/users/${userId}`, { credentials: 'include' })
+  if (res.status === 404) throw new Error('User not found')
+  if (!res.ok) throw new Error(`Failed to load profile (${res.status})`)
   return res.json()
 }
 
@@ -185,8 +219,8 @@ export async function deleteManualGame(key: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to remove (${res.status})`)
 }
 
-export async function fetchBacklog(): Promise<BacklogItem[]> {
-  const res = await fetch('/api/backlog')
+export async function fetchBacklog(userId?: number): Promise<BacklogItem[]> {
+  const res = await fetch(readPath('backlog', userId))
   if (!res.ok) throw new Error(`Failed to load backlog (${res.status})`)
   return res.json()
 }

@@ -48,7 +48,15 @@ function priorityInfo(value: number) {
   return PRIORITIES.find((p) => p.value === value) ?? PRIORITIES[1]
 }
 
-export function Backlog({ refreshKey }: { refreshKey: number }) {
+export function Backlog({
+  refreshKey,
+  userId,
+  readOnly = false,
+}: {
+  refreshKey: number
+  userId?: number
+  readOnly?: boolean
+}) {
   const [items, setItems] = useState<BacklogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -63,11 +71,11 @@ export function Backlog({ refreshKey }: { refreshKey: number }) {
 
   useEffect(() => {
     setLoading(true)
-    fetchBacklog()
+    fetchBacklog(userId)
       .then(setItems)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [refreshKey, reload])
+  }, [refreshKey, reload, userId])
 
   const handleAdd = useCallback(
     async (data: {
@@ -157,9 +165,11 @@ export function Backlog({ refreshKey }: { refreshKey: number }) {
           options={PRIORITY_FILTER_OPTIONS}
         />
         <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} />
-        <button className="add-btn" onClick={() => setShowAdd(true)}>
-          ＋ Add to backlog
-        </button>
+        {readOnly ? null : (
+          <button className="add-btn" onClick={() => setShowAdd(true)}>
+            ＋ Add to backlog
+          </button>
+        )}
       </div>
 
       <div className="library-meta">{filtered.length} games to play</div>
@@ -183,10 +193,13 @@ export function Backlog({ refreshKey }: { refreshKey: number }) {
           onPriority={handlePriority}
           onStart={handleStart}
           onDelete={handleDelete}
+          readOnly={readOnly}
         />
       ) : null}
 
-      {showAdd ? <AddBacklogModal onClose={() => setShowAdd(false)} onSave={handleAdd} /> : null}
+      {showAdd && !readOnly ? (
+        <AddBacklogModal onClose={() => setShowAdd(false)} onSave={handleAdd} />
+      ) : null}
     </div>
   )
 }
@@ -224,12 +237,14 @@ export function BacklogModal({
   onPriority,
   onStart,
   onDelete,
+  readOnly = false,
 }: {
   item: BacklogItem
   onClose: () => void
   onPriority: (id: number, value: number) => void | Promise<void>
   onStart: (id: number) => void | Promise<void>
   onDelete: (id: number) => void | Promise<void>
+  readOnly?: boolean
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -276,27 +291,39 @@ export function BacklogModal({
 
           <div className="prio-block">
             <span className="rating-label">Priority</span>
-            <div className="prio-selector">
-              {PRIORITIES.map((p) => (
-                <button
-                  key={p.value}
-                  className={`prio-option ${p.cls} ${item.priority === p.value ? 'prio-active' : ''}`}
-                  onClick={() => onPriority(item.id, p.value)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+            {readOnly ? (
+              <div className="prio-selector">
+                <span className={`prio-tag ${priorityInfo(item.priority).cls}`}>
+                  {priorityInfo(item.priority).label}
+                </span>
+              </div>
+            ) : (
+              <div className="prio-selector">
+                {PRIORITIES.map((p) => (
+                  <button
+                    key={p.value}
+                    className={`prio-option ${p.cls} ${item.priority === p.value ? 'prio-active' : ''}`}
+                    onClick={() => onPriority(item.id, p.value)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {item.notes ? <p className="meta-desc">{item.notes}</p> : null}
 
-          <button className="playing-btn" onClick={start} disabled={busy}>
-            ▶ Move to currently playing
-          </button>
-          <button className="delete-btn" onClick={() => onDelete(item.id)}>
-            Remove from backlog
-          </button>
+          {readOnly ? null : (
+            <>
+              <button className="playing-btn" onClick={start} disabled={busy}>
+                ▶ Move to currently playing
+              </button>
+              <button className="delete-btn" onClick={() => onDelete(item.id)}>
+                Remove from backlog
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

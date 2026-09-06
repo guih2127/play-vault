@@ -152,6 +152,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return (res.rows[0] as DbUser) ?? null;
   }
 
+  async listUsers(): Promise<DbUser[]> {
+    const res = await this.pool.query('SELECT * FROM users ORDER BY id ASC');
+    return res.rows as DbUser[];
+  }
+
   async getUserByEmail(email: string): Promise<DbUser | null> {
     const res = await this.pool.query('SELECT * FROM users WHERE email = $1', [email]);
     return (res.rows[0] as DbUser) ?? null;

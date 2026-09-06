@@ -30,9 +30,13 @@ interface Completion {
 export function TrophiesPage({
   meta,
   onRefresh,
+  userId,
+  readOnly = false,
 }: {
   meta: Dashboard
   onRefresh: () => void | Promise<void>
+  userId?: number
+  readOnly?: boolean
 }) {
   const [trophies, setTrophies] = useState<RecentTrophy[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,17 +48,17 @@ export function TrophiesPage({
 
   useEffect(() => {
     setLoading(true)
-    fetchTrophies()
+    fetchTrophies(userId)
       .then(setTrophies)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [])
+  }, [userId])
 
   useEffect(() => {
-    fetchGames()
+    fetchGames(userId)
       .then((list) => setGames(Object.fromEntries(list.map((g) => [g.key, g]))))
       .catch(() => {})
-  }, [])
+  }, [userId])
 
   const openGame = useCallback(
     (key: string) => {
@@ -266,6 +270,7 @@ export function TrophiesPage({
           onTogglePlaying={gTogglePlaying}
           onRate={gRate}
           onDelete={gDelete}
+          readOnly={readOnly}
         />
       ) : null}
 

@@ -20,6 +20,15 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   // Serve the built SPA at the root; API routes live under /api and are unaffected.
   app.useStaticAssets(staticDir);
+  // SPA fallback: the client uses history-based routing (react-router), so deep links like
+  // /users/5 have no matching file on disk. Serve index.html for any non-API GET that the
+  // static handler didn't resolve, letting the client router take over.
+  app.use((req: import('express').Request, res: import('express').Response, next: () => void) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.startsWith('/docs')) {
+      return next();
+    }
+    res.sendFile(join(staticDir, 'index.html'));
+  });
   // Behind a reverse proxy in production: trust it so req.ip is the real client (for rate
   // limiting) and Express knows the connection is HTTPS (for the Secure session cookie).
   if (isProd) app.set('trust proxy', 1);

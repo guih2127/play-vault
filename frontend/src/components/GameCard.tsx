@@ -95,14 +95,16 @@ export function GameModal({
   onRate,
   onDelete,
   onUpdateHours,
+  readOnly = false,
 }: {
   game: AggregatedGame
   onClose: () => void
-  onToggleBeaten: (key: string, beaten: boolean) => void | Promise<void>
-  onTogglePlaying: (key: string, playing: boolean) => void | Promise<void>
-  onRate: (key: string, rating: number) => void | Promise<void>
+  onToggleBeaten?: (key: string, beaten: boolean) => void | Promise<void>
+  onTogglePlaying?: (key: string, playing: boolean) => void | Promise<void>
+  onRate?: (key: string, rating: number) => void | Promise<void>
   onDelete?: (key: string) => void | Promise<void>
   onUpdateHours?: (key: string, hours: number) => void | Promise<void>
+  readOnly?: boolean
 }) {
   const [saving, setSaving] = useState(false)
   const platinum = isPlatinum(game)
@@ -119,7 +121,7 @@ export function GameModal({
   }, [onClose])
 
   const toggleBeaten = async () => {
-    if (platinum) return
+    if (platinum || !onToggleBeaten) return
     setSaving(true)
     try {
       await onToggleBeaten(game.key, !game.beaten)
@@ -129,6 +131,7 @@ export function GameModal({
   }
 
   const togglePlaying = async () => {
+    if (!onTogglePlaying) return
     setSaving(true)
     try {
       await onTogglePlaying(game.key, !playing)
@@ -188,10 +191,16 @@ export function GameModal({
             </div>
           ) : null}
 
-          <div className="rating-block">
-            <span className="rating-label">Your rating</span>
-            <StarRating value={game.rating ?? 0} onChange={(v) => onRate(game.key, v)} />
-          </div>
+          {readOnly && !game.rating ? null : (
+            <div className="rating-block">
+              <span className="rating-label">{readOnly ? 'Rating' : 'Your rating'}</span>
+              <StarRating
+                value={game.rating ?? 0}
+                onChange={(v) => onRate?.(game.key, v)}
+                readOnly={readOnly}
+              />
+            </div>
+          )}
 
           <div className="modal-body">
             {platImg ? (
@@ -227,26 +236,34 @@ export function GameModal({
             )}
           </div>
 
-          {!beaten || playing ? (
-            <button
-              className={`playing-btn ${playing ? 'playing-btn-on' : ''}`}
-              onClick={togglePlaying}
-              disabled={saving}
-            >
-              {playing ? '▶ Stop playing' : '▶ Mark as currently playing'}
-            </button>
-          ) : null}
-          <button className="beaten-btn" onClick={toggleBeaten} disabled={platinum || saving}>
-            {platinum ? 'Platinum (beaten)' : game.beaten ? 'Unmark as beaten' : 'Mark as beaten'}
-          </button>
-          {game.manual && onUpdateHours ? (
-            <ManualHoursEditor game={game} onSave={onUpdateHours} />
-          ) : null}
-          {game.manual && onDelete ? (
-            <button className="delete-btn" onClick={() => onDelete(game.key)}>
-              Remove game
-            </button>
-          ) : null}
+          {readOnly ? null : (
+            <>
+              {!beaten || playing ? (
+                <button
+                  className={`playing-btn ${playing ? 'playing-btn-on' : ''}`}
+                  onClick={togglePlaying}
+                  disabled={saving}
+                >
+                  {playing ? '▶ Stop playing' : '▶ Mark as currently playing'}
+                </button>
+              ) : null}
+              <button className="beaten-btn" onClick={toggleBeaten} disabled={platinum || saving}>
+                {platinum
+                  ? 'Platinum (beaten)'
+                  : game.beaten
+                    ? 'Unmark as beaten'
+                    : 'Mark as beaten'}
+              </button>
+              {game.manual && onUpdateHours ? (
+                <ManualHoursEditor game={game} onSave={onUpdateHours} />
+              ) : null}
+              {game.manual && onDelete ? (
+                <button className="delete-btn" onClick={() => onDelete(game.key)}>
+                  Remove game
+                </button>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -303,7 +320,15 @@ function ManualHoursEditor({
   )
 }
 
-function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarRating({
+  value,
+  onChange,
+  readOnly = false,
+}: {
+  value: number
+  onChange: (v: number) => void
+  readOnly?: boolean
+}) {
   const [hover, setHover] = useState(0)
   const shown = hover || value
   return (
@@ -316,18 +341,22 @@ function StarRating({ value, onChange }: { value: number; onChange: (v: number) 
             <span className="star-fill" style={{ width: `${fill}%` }}>
               ★
             </span>
-            <button
-              className="star-half left"
-              onMouseEnter={() => setHover(n - 0.5)}
-              onClick={() => onChange(value === n - 0.5 ? 0 : n - 0.5)}
-              aria-label={`${n - 0.5}`}
-            />
-            <button
-              className="star-half right"
-              onMouseEnter={() => setHover(n)}
-              onClick={() => onChange(value === n ? 0 : n)}
-              aria-label={`${n}`}
-            />
+            {readOnly ? null : (
+              <>
+                <button
+                  className="star-half left"
+                  onMouseEnter={() => setHover(n - 0.5)}
+                  onClick={() => onChange(value === n - 0.5 ? 0 : n - 0.5)}
+                  aria-label={`${n - 0.5}`}
+                />
+                <button
+                  className="star-half right"
+                  onMouseEnter={() => setHover(n)}
+                  onClick={() => onChange(value === n ? 0 : n)}
+                  aria-label={`${n}`}
+                />
+              </>
+            )}
           </span>
         )
       })}

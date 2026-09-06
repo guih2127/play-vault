@@ -21,6 +21,7 @@ build/
 *.db-wal
 *.db-shm
 *.db.backup
+*.db.bak*
 
 # logs
 *.log

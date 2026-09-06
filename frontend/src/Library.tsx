@@ -47,9 +47,13 @@ function isBeaten(g: AggregatedGame): boolean {
 export function Library({
   refreshKey,
   initialStatus = 'all',
+  userId,
+  readOnly = false,
 }: {
   refreshKey: number
   initialStatus?: StatusFilter
+  userId?: number
+  readOnly?: boolean
 }) {
   const [games, setGames] = useState<AggregatedGame[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,11 +89,11 @@ export function Library({
 
   useEffect(() => {
     setLoading(true)
-    fetchGames()
+    fetchGames(userId)
       .then(setGames)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
-  }, [refreshKey, reload])
+  }, [refreshKey, reload, userId])
 
   const handleToggleBeaten = useCallback(async (key: string, beaten: boolean) => {
     await setBeaten(key, beaten)
@@ -205,9 +209,11 @@ export function Library({
           options={STATUS_OPTIONS}
         />
         <Select value={sort} onChange={(v) => setSort(v as SortKey)} options={SORT_OPTIONS} />
-        <button className="add-btn" onClick={() => setShowAdd(true)}>
-          ＋ Add
-        </button>
+        {readOnly ? null : (
+          <button className="add-btn" onClick={() => setShowAdd(true)}>
+            ＋ Add
+          </button>
+        )}
       </div>
 
       <div className="library-meta">{filtered.length} games</div>
@@ -262,10 +268,13 @@ export function Library({
           onRate={handleRate}
           onDelete={handleDelete}
           onUpdateHours={handleUpdateHours}
+          readOnly={readOnly}
         />
       ) : null}
 
-      {showAdd ? <AddGameModal onClose={() => setShowAdd(false)} onSave={handleAdd} /> : null}
+      {showAdd && !readOnly ? (
+        <AddGameModal onClose={() => setShowAdd(false)} onSave={handleAdd} />
+      ) : null}
     </div>
   )
 }
