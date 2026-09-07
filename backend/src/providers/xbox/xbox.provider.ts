@@ -35,6 +35,12 @@ type EarnedAchievement = Pick<
   'name' | 'detail' | 'iconUrl' | 'earnedAt' | 'rarity'
 >;
 
+/** The earned achievements for one title, plus the title's name from the achievement history. */
+interface TitleEarned {
+  name?: string;
+  achievements: EarnedAchievement[];
+}
+
 @Injectable()
 export class XboxProvider implements GameProvider {
   readonly platform = 'xbox' as const;
@@ -70,12 +76,23 @@ export class XboxProvider implements GameProvider {
     }
 
     try {
-      const titles = await this.fetchTitles(session);
-      const games = titles.map((t) => this.toNormalizedGame(t));
+      const recentTitles = await this.fetchTitles(session);
+      // The user's earned Xbox One/Series achievements — the only reliable source of unlock
+      // state (per-title queries return the catalogue with every achievement as NotStarted).
+      const earned = await this.fetchEarnedAchievements(session);
+      // Titles the user earned achievements in but that dropped out of the recent title history
+      // (typically older games): fetch their metadata so they still show up as games.
+      const recentIds = new Set(recentTitles.map((t) => String(t.titleId)));
+      const missingIds = [...earned.keys()].filter((id) => !recentIds.has(id));
+      const extraTitles = await this.fetchTitlesByIds(session, missingIds, earned);
+      const titles = [...recentTitles, ...extraTitles];
+
+      const games = titles.map((t) => this.toNormalizedGame(t, earned));
       const trophyUpdates = await this.buildTrophyUpdates(
         session,
         titles,
         knownTrophyState ?? new Map(),
+        earned,
       );
 
       return {
@@ -122,6 +139,44 @@ export class XboxProvider implements GameProvider {
   }
 
   /**
+   * Fetch metadata (name, cover, achievement totals) for specific title ids — used for games the
+   * user earned achievements in that no longer appear in the recent title history. If titlehub
+   * can't return a title, fall back to a minimal record built from the achievement history so the
+   * game (and its trophies) still shows, just without cover art.
+   */
+  private async fetchTitlesByIds(
+    session: XboxSession,
+    ids: string[],
+    earned: Map<string, TitleEarned>,
+  ): Promise<XboxTitle[]> {
+    if (ids.length === 0) return [];
+    const out: XboxTitle[] = [];
+    const CHUNK = 15;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const chunk = ids.slice(i, i + CHUNK);
+      const path = chunk.map((id) => `titleid(${id})`).join(',');
+      try {
+        const { data } = await axios.get(
+          `${TITLEHUB}/users/xuid(${session.xuid})/titles/${path}/decoration/achievement,image`,
+          { headers: this.headers(session, '2'), timeout: 25000 },
+        );
+        const fetched: XboxTitle[] = data?.titles ?? [];
+        const seen = new Set(fetched.map((t) => String(t.titleId)));
+        out.push(...fetched);
+        // Anything titlehub omitted still gets a minimal record from the history.
+        for (const id of chunk) {
+          if (!seen.has(id)) out.push({ titleId: id, name: earned.get(id)?.name ?? `Xbox ${id}` });
+        }
+      } catch {
+        for (const id of chunk) {
+          out.push({ titleId: id, name: earned.get(id)?.name ?? `Xbox ${id}` });
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
    * Make an Xbox Live image URL usable from our https deployment. Titlehub returns image URLs
    * on `http://images-eds.xboxlive.com`, which the browser blocks as mixed content — and its
    * plain-https variant serves a certificate that doesn't match the host (also blocked). Xbox
@@ -142,26 +197,28 @@ export class XboxProvider implements GameProvider {
     return this.httpsify(boxart?.url ?? t.displayImage);
   }
 
-  private toNormalizedGame(t: XboxTitle): NormalizedGame {
+  private toNormalizedGame(t: XboxTitle, earned: Map<string, TitleEarned>): NormalizedGame {
     const ach = t.achievement;
     const cover = this.coverFor(t);
-    const set: NormalizedTrophies | undefined = ach
-      ? {
-          id: `xbox:${t.titleId}`,
-          titleName: t.name,
-          platformLabel: 'Xbox',
-          earned: ach.currentAchievements,
-          total: ach.totalAchievements,
-          progress:
-            ach.progressPercentage ??
-            (ach.totalAchievements
-              ? Math.round((ach.currentAchievements / ach.totalAchievements) * 100)
-              : 0),
-          platinumTotal: 0,
-          platinumEarned: 0,
-          lastEarnedAt: t.titleHistory?.lastTimePlayed,
-        }
-      : undefined;
+    // titlehub's currentAchievements is unreliable for Xbox One/Series (often 0 even when the
+    // user has unlocks), so prefer the count from the achievement history when we have it.
+    const historyEarned = earned.get(String(t.titleId))?.achievements.length ?? 0;
+    const earnedCount = Math.max(historyEarned, ach?.currentAchievements ?? 0);
+    const total = ach?.totalAchievements ?? historyEarned;
+    const set: NormalizedTrophies | undefined =
+      total > 0 || earnedCount > 0
+        ? {
+            id: `xbox:${t.titleId}`,
+            titleName: t.name,
+            platformLabel: 'Xbox',
+            earned: earnedCount,
+            total: total || earnedCount,
+            progress: total ? Math.round((earnedCount / total) * 100) : earnedCount > 0 ? 100 : 0,
+            platinumTotal: 0,
+            platinumEarned: 0,
+            lastEarnedAt: t.titleHistory?.lastTimePlayed,
+          }
+        : undefined;
     return {
       provider: 'xbox',
       externalId: t.titleId,
@@ -184,14 +241,15 @@ export class XboxProvider implements GameProvider {
    * alone would cache an empty trophy list and never refresh once the counts populate. Folding
    * in the counts forces a re-fetch as soon as they change.
    */
-  private syncKey(t: XboxTitle): string {
+  private syncKey(t: XboxTitle, earned: Map<string, TitleEarned>): string {
     const last = t.titleHistory?.lastTimePlayed ?? '';
-    const earned = t.achievement?.currentAchievements ?? 0;
-    const total = t.achievement?.totalAchievements ?? 0;
+    const historyEarned = earned.get(String(t.titleId))?.achievements.length ?? 0;
+    const e = Math.max(historyEarned, t.achievement?.currentAchievements ?? 0);
+    const total = t.achievement?.totalAchievements ?? historyEarned;
     // The leading token is a fetch-logic version: bump it whenever the way we resolve
     // achievements changes, so the next sync re-fetches every title once (titles cached as
     // empty by an older, broken strategy would otherwise never refresh).
-    return `v2|${last}|${earned}/${total}`;
+    return `v3|${last}|${e}/${total}`;
   }
 
   /** Store individual achievements for titles that changed since the last sync (incremental). */
@@ -199,20 +257,13 @@ export class XboxProvider implements GameProvider {
     session: XboxSession,
     titles: XboxTitle[],
     known: Map<string, string>,
+    earned: Map<string, TitleEarned>,
   ): Promise<TrophyUpdate[]> {
-    const changed = titles.filter((t) => known.get(`xbox:${t.titleId}`) !== this.syncKey(t));
-    if (changed.length === 0) {
-      this.logger.log(`Xbox trophy sync: 0/${titles.length} titles changed`);
-      return [];
-    }
-
-    // One paginated call returns every earned Xbox One/Series achievement, grouped by title.
-    // (Per-title queries return the catalogue with the user's state stripped — all NotStarted —
-    // so the user's history endpoint is the only reliable source, joined back to titles by id.)
-    const earnedByTitle = await this.fetchEarnedAchievements(session);
+    const changed = titles.filter((t) => known.get(`xbox:${t.titleId}`) !== this.syncKey(t, earned));
     this.logger.log(
-      `Xbox trophy sync: ${changed.length}/${titles.length} changed; modern earned across ${earnedByTitle.size} titles`,
+      `Xbox trophy sync: ${changed.length}/${titles.length} changed; earned history across ${earned.size} titles`,
     );
+    if (changed.length === 0) return [];
 
     const updates: TrophyUpdate[] = [];
     for (let i = 0; i < changed.length; i += CONCURRENCY) {
@@ -220,8 +271,8 @@ export class XboxProvider implements GameProvider {
       const res = await Promise.all(
         batch.map(async (t) => ({
           npCommId: `xbox:${t.titleId}`,
-          lastUpdated: this.syncKey(t),
-          trophies: await this.trophiesForTitle(session, t, earnedByTitle),
+          lastUpdated: this.syncKey(t, earned),
+          trophies: await this.trophiesForTitle(session, t, earned),
         })),
       );
       updates.push(...res);
@@ -232,10 +283,10 @@ export class XboxProvider implements GameProvider {
   private async trophiesForTitle(
     session: XboxSession,
     t: XboxTitle,
-    earnedByTitle: Map<string, EarnedAchievement[]>,
+    earned: Map<string, TitleEarned>,
   ): Promise<RecentTrophy[]> {
     const cover = this.coverFor(t);
-    const modern = earnedByTitle.get(String(t.titleId));
+    const modern = earned.get(String(t.titleId))?.achievements;
     if (modern && modern.length > 0) {
       return modern.map((a) => ({ provider: 'xbox', gameTitle: t.name, gameIconUrl: cover, ...a }));
     }
@@ -254,8 +305,8 @@ export class XboxProvider implements GameProvider {
    */
   private async fetchEarnedAchievements(
     session: XboxSession,
-  ): Promise<Map<string, EarnedAchievement[]>> {
-    const out = new Map<string, EarnedAchievement[]>();
+  ): Promise<Map<string, TitleEarned>> {
+    const out = new Map<string, TitleEarned>();
     let continuationToken: string | undefined;
     let page = 0;
     try {
@@ -268,8 +319,8 @@ export class XboxProvider implements GameProvider {
         );
         for (const a of (data?.achievements ?? []) as any[]) {
           if (a.progressState !== 'Achieved') continue;
-          const titleId = a.titleAssociations?.[0]?.id;
-          if (titleId == null) continue;
+          const assoc = a.titleAssociations?.[0];
+          if (assoc?.id == null) continue;
           const icon = this.httpsify((a.mediaAssets ?? []).find((m: any) => m.type === 'Icon')?.url);
           const pct = a.rarity?.currentPercentage;
           const entry: EarnedAchievement = {
@@ -279,10 +330,10 @@ export class XboxProvider implements GameProvider {
             earnedAt: a.progression?.timeUnlocked,
             rarity: pct != null ? Math.round(Number(pct) * 10) / 10 : undefined,
           };
-          const key = String(titleId);
-          const arr = out.get(key);
-          if (arr) arr.push(entry);
-          else out.set(key, [entry]);
+          const key = String(assoc.id);
+          const te = out.get(key);
+          if (te) te.achievements.push(entry);
+          else out.set(key, { name: assoc.name, achievements: [entry] });
         }
         continuationToken = data?.pagingInfo?.continuationToken ?? undefined;
         page++;
