@@ -302,7 +302,10 @@ function App() {
           <Route path="/trophies" element={<TrophiesRoute />} />
           <Route path="/profile" element={<ProfileRoute />} />
           <Route path="/users" element={<Users />} />
-          <Route path="/users/:id" element={<UserProfile currentUserId={user.id} />} />
+          <Route
+            path="/users/:id"
+            element={<UserProfile currentUserId={user.id} isAdmin={!!user.isAdmin} />}
+          />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

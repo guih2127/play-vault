@@ -5,6 +5,7 @@ export interface User {
   email: string | null
   name: string | null
   picture: string | null
+  isAdmin?: boolean
 }
 
 export interface ProviderStatus {

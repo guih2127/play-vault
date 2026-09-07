@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchDashboard, getUserProfile, type UserProfileData } from './api'
+import { fetchDashboard, getUserProfile, syncUser, type UserProfileData } from './api'
 import type { Dashboard } from './types'
 import { formatDate } from './format'
 import { Overview } from './Overview'
 import { Library } from './Library'
 import { Backlog } from './Backlog'
 import { TrophiesPage } from './TrophiesPage'
-import { LoadingState } from './components/Spinner'
+import { LoadingState, Spinner } from './components/Spinner'
 
 type Tab = 'overview' | 'library' | 'backlog' | 'trophies'
 
@@ -18,7 +18,13 @@ const TABS: Array<[Tab, string]> = [
   ['trophies', 'Trophies'],
 ]
 
-export function UserProfile({ currentUserId }: { currentUserId: number }) {
+export function UserProfile({
+  currentUserId,
+  isAdmin = false,
+}: {
+  currentUserId: number
+  isAdmin?: boolean
+}) {
   const { id } = useParams()
   const userId = Number(id)
   const navigate = useNavigate()
@@ -27,6 +33,8 @@ export function UserProfile({ currentUserId }: { currentUserId: number }) {
   const [meta, setMeta] = useState<Dashboard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('overview')
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   // Viewing your own id here would be a read-only mirror of yourself — send it to the editable app.
   useEffect(() => {
@@ -55,6 +63,19 @@ export function UserProfile({ currentUserId }: { currentUserId: number }) {
     }
   }, [userId])
 
+  const runSync = useCallback(async () => {
+    setSyncing(true)
+    setSyncError(null)
+    try {
+      await syncUser(userId)
+      await Promise.all([getUserProfile(userId).then(setProfile), loadMeta()])
+    } catch (e) {
+      setSyncError((e as Error).message)
+    } finally {
+      setSyncing(false)
+    }
+  }, [userId, loadMeta])
+
   useEffect(() => {
     if (tab === 'overview' || tab === 'trophies') void loadMeta()
   }, [tab, loadMeta])
@@ -75,9 +96,25 @@ export function UserProfile({ currentUserId }: { currentUserId: number }) {
 
   return (
     <div className="dashboard">
-      <button className="back-btn" onClick={() => navigate('/users')}>
-        ← Players
-      </button>
+      <div className="profile-topbar">
+        <button className="back-btn" onClick={() => navigate('/users')}>
+          ← Players
+        </button>
+        {isAdmin ? (
+          <button className="admin-sync-btn" onClick={runSync} disabled={syncing}>
+            {syncing ? (
+              <span className="welcome-cta-busy">
+                <Spinner size={16} />
+                Syncing…
+              </span>
+            ) : (
+              'Sync this user'
+            )}
+          </button>
+        ) : null}
+      </div>
+
+      {syncError ? <div className="banner-error">{syncError}</div> : null}
 
       <div className="profile-head">
         {profile.user.picture ? (

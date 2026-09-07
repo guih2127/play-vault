@@ -762,6 +762,28 @@
   gap: 8px;
 }
 
+.profile-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-sync-btn {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-2);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-sync-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .empty {
   display: flex;
   flex-direction: column;

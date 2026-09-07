@@ -16,6 +16,7 @@ export interface PublicUser {
   email: string | null;
   name: string | null;
   picture: string | null;
+  isAdmin: boolean;
 }
 
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
@@ -87,7 +88,25 @@ export class AuthService implements OnModuleInit {
   }
 
   toPublic(user: DbUser): PublicUser {
-    return { id: user.id, email: user.email, name: user.name, picture: user.picture };
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      isAdmin: this.isAdmin(user),
+    };
+  }
+
+  /** Admins are configured out-of-band via the ADMIN_EMAILS env var (comma-separated), so the
+   *  role can't be self-granted and needs no schema change — just deployment config. */
+  isAdmin(user: Pick<DbUser, 'email'>): boolean {
+    const email = user.email?.trim().toLowerCase();
+    if (!email) return false;
+    const admins = (this.config.get<string>('ADMIN_EMAILS') ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    return admins.includes(email);
   }
 
   get cookieMaxAge(): number {

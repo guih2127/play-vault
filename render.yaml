@@ -35,3 +35,5 @@ services:
         sync: false
       - key: MICROSOFT_CLIENT_SECRET # Xbox Live OAuth client secret
         sync: false
+      - key: ADMIN_EMAILS # comma-separated emails allowed to sync any user
+        sync: false

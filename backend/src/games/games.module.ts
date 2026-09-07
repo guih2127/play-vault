@@ -7,10 +7,11 @@ import { MetaService } from '../meta/meta.service.js';
 import { GamesController } from './games.controller.js';
 import { GamesService } from './games.service.js';
 import { UsersController } from '../users/users.controller.js';
+import { AdminController } from '../admin/admin.controller.js';
 
 @Module({
   imports: [ProvidersModule, AuthModule],
-  controllers: [GamesController, UsersController],
+  controllers: [GamesController, UsersController, AdminController],
   providers: [GamesService, SyncService, SearchService, MetaService],
 })
 export class GamesModule {}

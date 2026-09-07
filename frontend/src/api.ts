@@ -150,6 +150,13 @@ export async function syncNow(): Promise<{ gameCount: number }> {
   return res.json()
 }
 
+// Admin-only: trigger a sync for another user. Fails with 403 for non-admins.
+export async function syncUser(userId: number): Promise<{ gameCount: number }> {
+  const res = await fetch(`/api/admin/users/${userId}/sync`, { method: 'POST' })
+  if (!res.ok) throw new Error(`Sync failed (${res.status})`)
+  return res.json()
+}
+
 export async function setBeaten(key: string, beaten: boolean): Promise<void> {
   const res = await fetch('/api/games/beaten', {
     method: 'POST',
