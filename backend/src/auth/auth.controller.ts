@@ -12,7 +12,9 @@ const SESSION_COOKIE = 'pv_session';
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  private setSession(res: Response, user: DbUser) {
+  /** Sets the same-origin session cookie (used by the web app) and returns the raw JWT so native
+   *  clients (mobile), which can't use the cookie, can store it and send it as a Bearer token. */
+  private setSession(res: Response, user: DbUser): string {
     const token = this.auth.signSession(user);
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,
@@ -22,6 +24,7 @@ export class AuthController {
       maxAge: this.auth.cookieMaxAge,
       path: '/',
     });
+    return token;
   }
 
   @Post('google')
@@ -29,8 +32,8 @@ export class AuthController {
   @RateLimit(10, 60_000)
   async google(@Body() body: GoogleDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.loginWithGoogle(body.credential ?? '');
-    this.setSession(res, user);
-    return this.auth.toPublic(user);
+    const token = this.setSession(res, user);
+    return { ...this.auth.toPublic(user), token };
   }
 
   @Post('register')
@@ -38,8 +41,8 @@ export class AuthController {
   @RateLimit(10, 60_000)
   async register(@Body() body: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.register(body.email ?? '', body.password ?? '', body.name);
-    this.setSession(res, user);
-    return this.auth.toPublic(user);
+    const token = this.setSession(res, user);
+    return { ...this.auth.toPublic(user), token };
   }
 
   @Post('login')
@@ -47,8 +50,8 @@ export class AuthController {
   @RateLimit(10, 60_000)
   async login(@Body() body: LoginDto, @Res({ passthrough: true }) res: Response) {
     const user = await this.auth.loginWithPassword(body.email ?? '', body.password ?? '');
-    this.setSession(res, user);
-    return this.auth.toPublic(user);
+    const token = this.setSession(res, user);
+    return { ...this.auth.toPublic(user), token };
   }
 
   @Get('me')
