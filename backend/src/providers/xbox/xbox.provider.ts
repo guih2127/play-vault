@@ -188,7 +188,10 @@ export class XboxProvider implements GameProvider {
     const last = t.titleHistory?.lastTimePlayed ?? '';
     const earned = t.achievement?.currentAchievements ?? 0;
     const total = t.achievement?.totalAchievements ?? 0;
-    return `${last}|${earned}/${total}`;
+    // The leading token is a fetch-logic version: bump it whenever the way we resolve
+    // achievements changes, so the next sync re-fetches every title once (titles cached as
+    // empty by an older, broken strategy would otherwise never refresh).
+    return `v2|${last}|${earned}/${total}`;
   }
 
   /** Store individual achievements for titles that changed since the last sync (incremental). */
