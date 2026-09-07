@@ -80,9 +80,9 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
     }
   }, [])
 
-  // The OAuth callbacks (Steam/Xbox) redirect back with ?connected=… — send the user to their
-  // profile, and kick off a sync automatically on a successful connect so a first-time user
-  // doesn't have to hunt for the Sync button.
+  // The Steam OAuth callback redirects back with ?connected=… — send the user to their profile,
+  // and kick off a sync automatically on a successful connect so a first-time user doesn't have
+  // to hunt for the Sync button.
   useEffect(() => {
     const connected = params.get('connected')
     if (!connected) return

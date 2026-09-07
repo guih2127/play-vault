@@ -21,9 +21,6 @@ export interface DbConnections {
   user_id: number;
   psn_npsso: string | null;
   steam_id: string | null;
-  xbox_rtoken: string | null;
-  xbox_xuid: string | null;
-  xbox_gamertag: string | null;
   updated_at: string;
 }
 
@@ -108,11 +105,6 @@ export const SCHEMA: string[] = [
   `CREATE INDEX IF NOT EXISTS idx_snapshot_user ON snapshot (user_id, id)`,
   `CREATE INDEX IF NOT EXISTS idx_manual_user ON manual_game (user_id)`,
   `CREATE INDEX IF NOT EXISTS idx_backlog_user ON backlog (user_id)`,
-  // Xbox Live connection (added after the initial schema): the Microsoft OAuth refresh token
-  // (encrypted), the resolved Xbox user id and the gamertag. Idempotent so boots stay safe.
-  `ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS xbox_rtoken TEXT`,
-  `ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS xbox_xuid TEXT`,
-  `ALTER TABLE user_connections ADD COLUMN IF NOT EXISTS xbox_gamertag TEXT`,
 ];
 
 @Injectable()
@@ -201,31 +193,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       `INSERT INTO user_connections (user_id, steam_id, updated_at) VALUES ($1, $2, $3)
        ON CONFLICT (user_id) DO UPDATE SET steam_id = EXCLUDED.steam_id, updated_at = EXCLUDED.updated_at`,
       [userId, steamId, new Date().toISOString()],
-    );
-  }
-
-  /** Store (or clear, when passed nulls) the Xbox connection. `rtoken` should already be encrypted. */
-  async setXbox(
-    userId: number,
-    xbox: { rtoken: string; xuid: string; gamertag: string | null } | null,
-  ): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO user_connections (user_id, xbox_rtoken, xbox_xuid, xbox_gamertag, updated_at)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (user_id) DO UPDATE SET
-         xbox_rtoken = EXCLUDED.xbox_rtoken,
-         xbox_xuid = EXCLUDED.xbox_xuid,
-         xbox_gamertag = EXCLUDED.xbox_gamertag,
-         updated_at = EXCLUDED.updated_at`,
-      [userId, xbox?.rtoken ?? null, xbox?.xuid ?? null, xbox?.gamertag ?? null, new Date().toISOString()],
-    );
-  }
-
-  /** Persist a rotated Microsoft refresh token (already encrypted) without touching other fields. */
-  async updateXboxRefreshToken(userId: number, rtoken: string): Promise<void> {
-    await this.pool.query(
-      `UPDATE user_connections SET xbox_rtoken = $2, updated_at = $3 WHERE user_id = $1`,
-      [userId, rtoken, new Date().toISOString()],
     );
   }
 

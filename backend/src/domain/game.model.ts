@@ -65,13 +65,13 @@ export interface TrophyProfile {
 }
 
 export interface RecentTrophy {
-  provider: 'psn' | 'steam' | 'xbox';
+  provider: 'psn' | 'steam';
   gameTitle: string;
   gameIconUrl?: string;
   name: string;
   detail?: string;
   iconUrl?: string;
-  /** PSN trophy grade. Undefined for Steam/Xbox achievements (which have no grade). */
+  /** PSN trophy grade. Undefined for Steam achievements (which have no grade). */
   type?: 'bronze' | 'silver' | 'gold' | 'platinum';
   earnedAt?: string;
   /** Percentage of players who earned this trophy/achievement (lower = rarer). */
@@ -90,9 +90,4 @@ export interface ProviderResult {
   trophyProfile?: TrophyProfile;
   /** Per-title trophy lists for titles that changed since the last sync (for incremental storage). */
   trophyUpdates?: TrophyUpdate[];
-  /**
-   * A credential the provider refreshed and wants persisted (e.g. Microsoft rotates the OAuth
-   * refresh token on each use). Sync writes it back so the next sync uses the current token.
-   */
-  credentialUpdate?: { xboxRefreshToken?: string };
 }

@@ -25,7 +25,7 @@ export function WelcomeGuide({
           <span className="welcome-step-num">{hasConnection ? '✓' : '1'}</span>
           <div className="welcome-step-body">
             <div className="welcome-step-title">Connect an account</div>
-            <div className="welcome-step-desc">Link your PlayStation, Steam or Xbox account.</div>
+            <div className="welcome-step-desc">Link your PlayStation or Steam account.</div>
           </div>
           <button className="welcome-cta" onClick={onConnect}>
             {hasConnection ? 'Add another' : 'Connect'}

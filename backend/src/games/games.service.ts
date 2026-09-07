@@ -59,13 +59,8 @@ function isSteamTrophySet(platformLabel: string): boolean {
   return /steam/i.test(platformLabel);
 }
 
-function isXboxTrophySet(platformLabel: string): boolean {
-  return /xbox/i.test(platformLabel);
-}
-
 /** Which provider a trophy set belongs to, by its platform label. Defaults to PSN. */
-function providerOfTrophySet(platformLabel: string): 'psn' | 'steam' | 'xbox' {
-  if (isXboxTrophySet(platformLabel)) return 'xbox';
+function providerOfTrophySet(platformLabel: string): 'psn' | 'steam' {
   if (isSteamTrophySet(platformLabel)) return 'steam';
   return 'psn';
 }
@@ -124,13 +119,12 @@ export interface DashboardSummary {
   mostPlayed: AggregatedGame[];
   playingGames: AggregatedGame[];
   beatenGames: AggregatedGame[];
-  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies; xbox: ProviderTrophies };
+  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies };
   recentPlatinums: {
     psn: RecentCompletion[];
     steam: RecentCompletion[];
-    xbox: RecentCompletion[];
   };
-  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[]; xbox: RecentTrophy[] };
+  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[] };
   trophyProfile: TrophyProfile | null;
   backlogPreview: BacklogItem[];
   backlogCount: number;
@@ -440,10 +434,9 @@ export class GamesService {
     const trophiesByProvider = {
       psn: emptyProviderTrophies(),
       steam: emptyProviderTrophies(),
-      xbox: emptyProviderTrophies(),
     };
     for (const g of games) {
-      const hit = { psn: false, steam: false, xbox: false };
+      const hit = { psn: false, steam: false };
       for (const set of g.trophySets) {
         const prov = providerOfTrophySet(set.platformLabel);
         const bucket = trophiesByProvider[prov];
@@ -455,14 +448,12 @@ export class GamesService {
       }
       if (hit.psn) trophiesByProvider.psn.gamesWithTrophies += 1;
       if (hit.steam) trophiesByProvider.steam.gamesWithTrophies += 1;
-      if (hit.xbox) trophiesByProvider.xbox.gamesWithTrophies += 1;
     }
 
     for (const g of beatenGames) {
       for (const prov of g.providers) {
         if (prov === 'psn') trophiesByProvider.psn.beaten += 1;
         else if (prov === 'steam') trophiesByProvider.steam.beaten += 1;
-        else if (prov === 'xbox') trophiesByProvider.xbox.beaten += 1;
       }
     }
 
@@ -476,10 +467,9 @@ export class GamesService {
         return total > 0 && earned === total;
       }).length;
 
-    // "Platinum" groups PSN platinums with Steam/Xbox games completed at 100%.
+    // "Platinum" groups PSN platinums with Steam games completed at 100%.
     const steamCompleted = completedCountFor(isSteamTrophySet);
-    const xboxCompleted = completedCountFor(isXboxTrophySet);
-    const platinumCount = platinumEarned + steamCompleted + xboxCompleted;
+    const platinumCount = platinumEarned + steamCompleted;
 
     // Prefer individual platinum trophies from the incremental store (one per platinum earned,
     // with exact dates). Fall back to game-derived platinums before the first full trophy sync.
@@ -520,9 +510,9 @@ export class GamesService {
 
     const psnPlatinums = storePlatinums.length ? storePlatinums : gamePlatinums;
 
-    // Steam/Xbox have no platinum trophy, so a "completion" is a game finished at 100%. Decorate it
+    // Steam has no platinum trophy, so a "completion" is a game finished at 100%. Decorate it
     // with that title's most recent stored achievement (for the icon/rarity/name shown in the UI).
-    const buildCompletions = (isProv: (label: string) => boolean, provider: 'steam' | 'xbox') => {
+    const buildCompletions = (isProv: (label: string) => boolean, provider: 'steam') => {
       const lastByKey = new Map<string, RecentTrophy>();
       for (const t of storedTrophies) {
         if ((t.provider ?? 'psn') !== provider || !t.earnedAt) continue;
@@ -560,11 +550,10 @@ export class GamesService {
     };
 
     const steamPlatinums = buildCompletions(isSteamTrophySet, 'steam');
-    const xboxPlatinums = buildCompletions(isXboxTrophySet, 'xbox');
 
-    const recentPlatinums = { psn: psnPlatinums, steam: steamPlatinums, xbox: xboxPlatinums };
+    const recentPlatinums = { psn: psnPlatinums, steam: steamPlatinums };
 
-    const latestTrophies = (provider: 'psn' | 'steam' | 'xbox') =>
+    const latestTrophies = (provider: 'psn' | 'steam') =>
       storedTrophies
         .filter((t) => (t.provider ?? 'psn') === provider && t.earnedAt)
         .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''))
@@ -573,7 +562,6 @@ export class GamesService {
     const recentTrophies = {
       psn: latestTrophies('psn'),
       steam: latestTrophies('steam'),
-      xbox: latestTrophies('xbox'),
     };
 
     const backlog = await this.getBacklog(userId);

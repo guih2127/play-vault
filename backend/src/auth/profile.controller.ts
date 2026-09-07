@@ -16,7 +16,6 @@ import axios from 'axios';
 import { AuthGuard, type AuthedRequest } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { CryptoService } from './crypto.service.js';
-import { XboxAuthService } from './xbox-auth.service.js';
 import { ConnectPsnDto } from './auth.dto.js';
 import { DatabaseService } from '../db/database.service.js';
 import type { SnapshotPayload } from '../games/snapshot.js';
@@ -32,7 +31,6 @@ export class ProfileController {
     private readonly db: DatabaseService,
     private readonly crypto: CryptoService,
     private readonly config: ConfigService,
-    private readonly xboxAuth: XboxAuthService,
   ) {}
 
   private get appUrl(): string {
@@ -55,16 +53,12 @@ export class ProfileController {
       connections: {
         psn: !!conn?.psn_npsso,
         steam: !!conn?.steam_id,
-        xbox: !!conn?.xbox_rtoken,
       },
       status: {
         psn: statusFor('psn'),
         steam: statusFor('steam'),
-        xbox: statusFor('xbox'),
       },
       steamId: conn?.steam_id ?? null,
-      xboxGamertag: conn?.xbox_gamertag ?? null,
-      xboxConfigured: this.xboxAuth.isConfigured(),
     };
   }
 
@@ -114,40 +108,6 @@ export class ProfileController {
     } else {
       res.redirect(`${this.appUrl}/?connected=steam_error`);
     }
-  }
-
-  @Get('xbox/login')
-  xboxLogin(@Res() res: Response) {
-    if (!this.xboxAuth.isConfigured()) {
-      return res.redirect(`${this.appUrl}/?connected=xbox_error`);
-    }
-    res.redirect(this.xboxAuth.getAuthorizeUrl());
-  }
-
-  @Get('xbox/callback')
-  async xboxCallback(
-    @Req() req: AuthedRequest,
-    @Query('code') code: string,
-    @Res() res: Response,
-  ) {
-    if (!code) return res.redirect(`${this.appUrl}/?connected=xbox_error`);
-    try {
-      const session = await this.xboxAuth.exchangeCode(code);
-      await this.db.setXbox(req.user.id, {
-        rtoken: this.crypto.encrypt(session.refreshToken),
-        xuid: session.xuid,
-        gamertag: session.gamertag ?? null,
-      });
-      res.redirect(`${this.appUrl}/?connected=xbox`);
-    } catch {
-      res.redirect(`${this.appUrl}/?connected=xbox_error`);
-    }
-  }
-
-  @Delete('xbox')
-  async disconnectXbox(@Req() req: AuthedRequest) {
-    await this.db.setXbox(req.user.id, null);
-    return { ok: true };
   }
 
   private async verifySteamOpenId(query: Record<string, string>): Promise<string | null> {

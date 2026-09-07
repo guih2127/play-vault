@@ -19,7 +19,7 @@ const PLATINUMS_PER_PAGE = 10
 
 interface Completion {
   key: string
-  provider: 'psn' | 'steam' | 'xbox'
+  provider: 'psn' | 'steam'
   title: string
   name?: string
   coverUrl?: string
@@ -108,8 +108,7 @@ export function TrophiesPage({
   const completions = useMemo<Completion[]>(() => {
     const psn = meta.recentPlatinums.psn.map((x) => ({ ...x, provider: 'psn' as const }))
     const steam = meta.recentPlatinums.steam.map((x) => ({ ...x, provider: 'steam' as const }))
-    const xbox = meta.recentPlatinums.xbox.map((x) => ({ ...x, provider: 'xbox' as const }))
-    return [...psn, ...steam, ...xbox]
+    return [...psn, ...steam]
   }, [meta])
 
   const completionSorts: SortOption<Completion>[] = [
@@ -134,7 +133,6 @@ export function TrophiesPage({
     { key: 'all', label: 'All', predicate: () => true },
     { key: 'psn', label: 'PlayStation', predicate: (t) => t.provider === 'psn' },
     { key: 'steam', label: 'Steam', predicate: (t) => t.provider === 'steam' },
-    { key: 'xbox', label: 'Xbox', predicate: (t) => t.provider === 'xbox' },
   ]
 
   return (
@@ -152,13 +150,6 @@ export function TrophiesPage({
           cls="src-steam"
           earned={meta.trophiesByProvider.steam.earned}
           games={meta.trophiesByProvider.steam.gamesWithTrophies}
-          unit="achievements"
-        />
-        <SourceStat
-          name="Xbox"
-          cls="src-xbox"
-          earned={meta.trophiesByProvider.xbox.earned}
-          games={meta.trophiesByProvider.xbox.gamesWithTrophies}
           unit="achievements"
         />
       </div>

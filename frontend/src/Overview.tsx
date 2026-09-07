@@ -35,7 +35,7 @@ interface PlatItem {
   earnedAt?: string
   platinumIconUrl?: string
   rarity?: number
-  provider: 'psn' | 'steam' | 'xbox'
+  provider: 'psn' | 'steam'
 }
 
 const PRIORITY_LABEL: Record<number, { label: string; cls: string }> = {
@@ -310,7 +310,7 @@ function TrophiesWidget({
   onOpenTrophy,
   onGoTrophies,
 }: {
-  trophies: { psn: ProviderTrophies; steam: ProviderTrophies; xbox: ProviderTrophies }
+  trophies: { psn: ProviderTrophies; steam: ProviderTrophies }
   platinums: Dashboard['recentPlatinums']
   trophiesList: Dashboard['recentTrophies']
   gamesByKey: Record<string, AggregatedGame>
@@ -318,13 +318,13 @@ function TrophiesWidget({
   onOpenTrophy: (trophy: RecentTrophy) => void
   onGoTrophies: () => void
 }) {
-  const [provider, setProvider] = useState<'all' | 'psn' | 'steam' | 'xbox'>('all')
+  const [provider, setProvider] = useState<'all' | 'psn' | 'steam'>('all')
   const [mode, setMode] = useState<'platinums' | 'trophies'>('platinums')
 
   const byDateAll = <T extends { earnedAt?: string }>(...lists: T[][]) =>
     lists.flat().sort((x, y) => (y.earnedAt ?? '').localeCompare(x.earnedAt ?? ''))
 
-  const sumTrophies = (keys: Array<'psn' | 'steam' | 'xbox'>): ProviderTrophies =>
+  const sumTrophies = (keys: Array<'psn' | 'steam'>): ProviderTrophies =>
     keys.reduce(
       (acc, k) => ({
         earned: acc.earned + trophies[k].earned,
@@ -338,28 +338,25 @@ function TrophiesWidget({
     )
 
   const t: ProviderTrophies =
-    provider === 'all' ? sumTrophies(['psn', 'steam', 'xbox']) : trophies[provider]
+    provider === 'all' ? sumTrophies(['psn', 'steam']) : trophies[provider]
   const platsPsn: PlatItem[] = platinums.psn.map((p) => ({ ...p, provider: 'psn' }))
   const platsSteam: PlatItem[] = platinums.steam.map((p) => ({ ...p, provider: 'steam' }))
-  const platsXbox: PlatItem[] = platinums.xbox.map((p) => ({ ...p, provider: 'xbox' }))
   const plats =
     provider === 'all'
-      ? byDateAll(platsPsn, platsSteam, platsXbox)
+      ? byDateAll(platsPsn, platsSteam)
       : provider === 'psn'
         ? platsPsn
-        : provider === 'steam'
-          ? platsSteam
-          : platsXbox
+        : platsSteam
   const tros =
     provider === 'all'
-      ? byDateAll(trophiesList.psn, trophiesList.steam, trophiesList.xbox)
+      ? byDateAll(trophiesList.psn, trophiesList.steam)
       : trophiesList[provider]
   const showPlat = provider === 'psn' || provider === 'all'
 
   const listHead =
     mode === 'trophies'
       ? 'Latest trophies'
-      : provider === 'steam' || provider === 'xbox'
+      : provider === 'steam'
         ? 'Latest 100%'
         : 'Latest platinums'
 
@@ -387,19 +384,13 @@ function TrophiesWidget({
             >
               Steam
             </button>
-            <button
-              className={`seg-btn ${provider === 'xbox' ? 'seg-active' : ''}`}
-              onClick={() => setProvider('xbox')}
-            >
-              Xbox
-            </button>
           </div>
           <div className="seg seg-mode">
             <button
               className={`seg-btn ${mode === 'platinums' ? 'seg-active' : ''}`}
               onClick={() => setMode('platinums')}
             >
-              {provider === 'steam' || provider === 'xbox' ? '100%' : 'Platinums'}
+              {provider === 'steam' ? '100%' : 'Platinums'}
             </button>
             <button
               className={`seg-btn ${mode === 'trophies' ? 'seg-active' : ''}`}
@@ -454,7 +445,7 @@ function TrophiesWidget({
             </div>
           ) : (
             <div className="widget-empty">
-              No {provider === 'steam' || provider === 'xbox' ? '100% games' : 'platinums'} yet.
+              No {provider === 'steam' ? '100% games' : 'platinums'} yet.
             </div>
           )}
         </div>

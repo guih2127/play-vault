@@ -96,7 +96,7 @@ export interface RecentCompletion {
 }
 
 export interface RecentTrophy {
-  provider: 'psn' | 'steam' | 'xbox'
+  provider: 'psn' | 'steam'
   gameTitle: string
   gameIconUrl?: string
   name: string
@@ -130,13 +130,12 @@ export interface Dashboard {
   mostPlayed: AggregatedGame[]
   playingGames: AggregatedGame[]
   beatenGames: AggregatedGame[]
-  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies; xbox: ProviderTrophies }
+  trophiesByProvider: { psn: ProviderTrophies; steam: ProviderTrophies }
   recentPlatinums: {
     psn: RecentCompletion[]
     steam: RecentCompletion[]
-    xbox: RecentCompletion[]
   }
-  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[]; xbox: RecentTrophy[] }
+  recentTrophies: { psn: RecentTrophy[]; steam: RecentTrophy[] }
   trophyProfile: TrophyProfile | null
   backlogPreview: BacklogItem[]
   backlogCount: number

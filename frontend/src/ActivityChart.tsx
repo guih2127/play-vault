@@ -10,17 +10,16 @@ import {
 import type { RecentTrophy } from './types'
 
 type Gran = 'day' | 'month' | 'year'
-type Prov = 'all' | 'psn' | 'steam' | 'xbox'
+type Prov = 'all' | 'psn' | 'steam'
 type Range = '30d' | '90d' | '1y' | 'all' | 'custom'
 
 const GRAN_LABEL: Record<Gran, string> = { day: 'Day', month: 'Month', year: 'Year' }
-const PROV_LABEL: Record<Prov, string> = { all: 'All', psn: 'PSN', steam: 'Steam', xbox: 'Xbox' }
-// PSN awards "trophies"; Steam and Xbox award "achievements".
+const PROV_LABEL: Record<Prov, string> = { all: 'All', psn: 'PSN', steam: 'Steam' }
+// PSN awards "trophies"; Steam awards "achievements".
 const PROV_NOUN: Record<Prov, string> = {
   all: 'trophies',
   psn: 'trophies',
   steam: 'achievements',
-  xbox: 'achievements',
 }
 const RANGE_LABEL: Record<Range, string> = {
   '30d': '30d',
@@ -386,7 +385,7 @@ export function ActivityTab({ tabs, trophies }: { tabs: ReactNode; trophies: Rec
         </div>
 
         {total ? (
-          <div className={`chart ${prov === 'xbox' ? 'chart-xbox' : ''}`}>
+          <div className="chart">
             <div
               className="chart-plot"
               ref={setPlotRef}

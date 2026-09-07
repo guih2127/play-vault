@@ -5,11 +5,10 @@ import { ProfileController } from './profile.controller.js';
 import { AuthGuard } from './auth.guard.js';
 import { CryptoService } from './crypto.service.js';
 import { RateLimitGuard } from './rate-limit.guard.js';
-import { XboxAuthService } from './xbox-auth.service.js';
 
 @Module({
   controllers: [AuthController, ProfileController],
-  providers: [AuthService, AuthGuard, CryptoService, RateLimitGuard, XboxAuthService],
-  exports: [AuthService, AuthGuard, CryptoService, XboxAuthService],
+  providers: [AuthService, AuthGuard, CryptoService, RateLimitGuard],
+  exports: [AuthService, AuthGuard, CryptoService],
 })
 export class AuthModule {}

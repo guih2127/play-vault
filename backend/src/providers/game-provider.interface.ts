@@ -6,10 +6,6 @@ export interface ProviderCredentials {
   psnNpsso?: string;
   steamApiKey?: string;
   steamId?: string;
-  /** Microsoft OAuth refresh token (decrypted) for Xbox Live. */
-  xboxRefreshToken?: string;
-  /** Cached Xbox user id, when known, to skip re-resolving it. */
-  xboxXuid?: string;
 }
 
 export interface GameProvider {
