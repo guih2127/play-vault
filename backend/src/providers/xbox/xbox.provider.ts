@@ -171,15 +171,27 @@ export class XboxProvider implements GameProvider {
     };
   }
 
+  /**
+   * A per-title fingerprint used to decide whether to re-fetch its individual achievements.
+   * It combines last-played time with the earned/total counts: right after connecting, Xbox
+   * Live may briefly report 0 earned (data not yet propagated), so keying on lastTimePlayed
+   * alone would cache an empty trophy list and never refresh once the counts populate. Folding
+   * in the counts forces a re-fetch as soon as they change.
+   */
+  private syncKey(t: XboxTitle): string {
+    const last = t.titleHistory?.lastTimePlayed ?? '';
+    const earned = t.achievement?.currentAchievements ?? 0;
+    const total = t.achievement?.totalAchievements ?? 0;
+    return `${last}|${earned}/${total}`;
+  }
+
   /** Fetch individual achievements only for titles that changed since the last sync (incremental). */
   private async buildTrophyUpdates(
     session: XboxSession,
     titles: XboxTitle[],
     known: Map<string, string>,
   ): Promise<TrophyUpdate[]> {
-    const changed = titles.filter(
-      (t) => known.get(`xbox:${t.titleId}`) !== (t.titleHistory?.lastTimePlayed ?? ''),
-    );
+    const changed = titles.filter((t) => known.get(`xbox:${t.titleId}`) !== this.syncKey(t));
     this.logger.log(`Xbox trophy sync: ${changed.length}/${titles.length} titles changed`);
 
     const updates: TrophyUpdate[] = [];
@@ -188,7 +200,7 @@ export class XboxProvider implements GameProvider {
       const res = await Promise.all(
         batch.map(async (t) => ({
           npCommId: `xbox:${t.titleId}`,
-          lastUpdated: t.titleHistory?.lastTimePlayed ?? '',
+          lastUpdated: this.syncKey(t),
           trophies: await this.fetchAchievementDetails(session, t),
         })),
       );
@@ -203,12 +215,18 @@ export class XboxProvider implements GameProvider {
   ): Promise<RecentTrophy[]> {
     // Xbox One / Series titles expose earned achievements through the modern (contract v2)
     // endpoint. Xbox 360 titles return nothing there — their unlocks live in the legacy
-    // (contract v1) `titleachievements` endpoint — so fall back to it when v2 comes back empty
-    // but titlehub says the user has earned achievements for this title.
+    // (contract v1) endpoint — so fall back to it when v2 comes back empty but titlehub says
+    // the user has earned achievements for this title.
+    const summary = t.achievement?.currentAchievements ?? 0;
     const modern = await this.fetchModernAchievements(session, t);
-    if (modern.length > 0) return modern;
-    if ((t.achievement?.currentAchievements ?? 0) > 0) {
-      return this.fetchLegacyAchievements(session, t);
+    if (modern.length > 0) {
+      if (summary > 0) this.logger.log(`Xbox v2 ${t.name}: parsed ${modern.length}/${summary} earned`);
+      return modern;
+    }
+    if (summary > 0) {
+      const legacy = await this.fetchLegacyAchievements(session, t);
+      this.logger.log(`Xbox v1 ${t.name}: parsed ${legacy.length}/${summary} earned (v2 empty)`);
+      return legacy;
     }
     return modern;
   }
