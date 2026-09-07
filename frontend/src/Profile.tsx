@@ -1,8 +1,36 @@
 import { useEffect, useState } from 'react'
-import { connectPsn, disconnectProvider, getProfile, type Profile as ProfileData } from './api'
+import {
+  connectPsn,
+  disconnectProvider,
+  getProfile,
+  type Profile as ProfileData,
+  type ProviderConnStatus,
+} from './api'
 import type { User } from './types'
 
-export function Profile({ user, onChanged }: { user: User; onChanged?: () => void }) {
+// A provider is flagged for reconnect when its credentials are stored but the last sync could
+// not use them (e.g. an expired PSN token). "Never synced" isn't a failure — it just means the
+// user hasn't run a sync yet.
+function reconnectError(connected: boolean, status: ProviderConnStatus | null): string | null {
+  if (!connected || !status || status.connected) return null
+  if (!status.error || status.error === 'Never synced') return null
+  return status.error
+}
+
+function ReconnectWarning({ error }: { error: string | null }) {
+  if (!error) return null
+  return <div className="provider-warn">⚠ {error} — reconnect to fix.</div>
+}
+
+export function Profile({
+  user,
+  onChanged,
+  onConnected,
+}: {
+  user: User
+  onChanged?: () => void
+  onConnected?: () => void
+}) {
   const [data, setData] = useState<ProfileData | null>(null)
 
   const reload = () =>
@@ -17,6 +45,12 @@ export function Profile({ user, onChanged }: { user: User; onChanged?: () => voi
   const done = () => {
     void reload()
     onChanged?.()
+  }
+
+  // After a fresh connect, reload the profile and kick off a sync so data shows up right away.
+  const connected = () => {
+    void reload()
+    onConnected?.()
   }
 
   return (
@@ -42,10 +76,20 @@ export function Profile({ user, onChanged }: { user: User; onChanged?: () => voi
       </p>
 
       <div className="profile-providers">
-        <PsnCard connected={!!data?.connections.psn} onDone={done} />
-        <SteamCard connected={!!data?.connections.steam} onDone={done} />
+        <PsnCard
+          connected={!!data?.connections.psn}
+          status={data?.status.psn ?? null}
+          onDone={done}
+          onConnected={connected}
+        />
+        <SteamCard
+          connected={!!data?.connections.steam}
+          status={data?.status.steam ?? null}
+          onDone={done}
+        />
         <XboxCard
           connected={!!data?.connections.xbox}
+          status={data?.status.xbox ?? null}
           configured={data?.xboxConfigured ?? true}
           gamertag={data?.xboxGamertag ?? null}
           onDone={done}
@@ -57,11 +101,13 @@ export function Profile({ user, onChanged }: { user: User; onChanged?: () => voi
 
 function XboxCard({
   connected,
+  status,
   configured,
   gamertag,
   onDone,
 }: {
   connected: boolean
+  status: ProviderConnStatus | null
   configured: boolean
   gamertag: string | null
   onDone: () => void
@@ -86,6 +132,7 @@ function XboxCard({
           <span className="provider-connected">✓ {gamertag ?? 'Connected'}</span>
         ) : null}
       </div>
+      <ReconnectWarning error={reconnectError(connected, status)} />
       <p className="provider-hint">
         Sign in with your Microsoft account to sync your Xbox games and achievements — nothing to
         paste.
@@ -110,7 +157,17 @@ function XboxCard({
   )
 }
 
-function PsnCard({ connected, onDone }: { connected: boolean; onDone: () => void }) {
+function PsnCard({
+  connected,
+  status,
+  onDone,
+  onConnected,
+}: {
+  connected: boolean
+  status: ProviderConnStatus | null
+  onDone: () => void
+  onConnected: () => void
+}) {
   const [value, setValue] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -121,7 +178,7 @@ function PsnCard({ connected, onDone }: { connected: boolean; onDone: () => void
     try {
       await connectPsn(value)
       setValue('')
-      onDone()
+      onConnected()
     } catch (e) {
       setError((e as Error).message)
     } finally {
@@ -145,6 +202,7 @@ function PsnCard({ connected, onDone }: { connected: boolean; onDone: () => void
         <span className="src-tag src-psn">PlayStation</span>
         {connected ? <span className="provider-connected">✓ Connected</span> : null}
       </div>
+      <ReconnectWarning error={reconnectError(connected, status)} />
       <p className="provider-hint">
         Paste your <strong>NPSSO</strong> token. Sign in at{' '}
         <a href="https://www.playstation.com" target="_blank" rel="noreferrer">
@@ -178,7 +236,15 @@ function PsnCard({ connected, onDone }: { connected: boolean; onDone: () => void
   )
 }
 
-function SteamCard({ connected, onDone }: { connected: boolean; onDone: () => void }) {
+function SteamCard({
+  connected,
+  status,
+  onDone,
+}: {
+  connected: boolean
+  status: ProviderConnStatus | null
+  onDone: () => void
+}) {
   const [busy, setBusy] = useState(false)
 
   const remove = async () => {
@@ -197,6 +263,7 @@ function SteamCard({ connected, onDone }: { connected: boolean; onDone: () => vo
         <span className="src-tag src-steam">Steam</span>
         {connected ? <span className="provider-connected">✓ Connected</span> : null}
       </div>
+      <ReconnectWarning error={reconnectError(connected, status)} />
       <p className="provider-hint">
         Click to sign in with your Steam account — nothing to paste. Your profile and game details
         must be <strong>public</strong>.

@@ -19,6 +19,8 @@ import { CryptoService } from './crypto.service.js';
 import { XboxAuthService } from './xbox-auth.service.js';
 import { ConnectPsnDto } from './auth.dto.js';
 import { DatabaseService } from '../db/database.service.js';
+import type { SnapshotPayload } from '../games/snapshot.js';
+import type { Platform } from '../domain/game.model.js';
 
 const STEAM_OPENID = 'https://steamcommunity.com/openid/login';
 
@@ -40,12 +42,25 @@ export class ProfileController {
   @Get()
   async get(@Req() req: AuthedRequest) {
     const conn = await this.db.getConnections(req.user.id);
+    // Surface each provider's result from the last sync so the UI can flag a connected
+    // account whose credentials have gone stale (e.g. an expired PSN token) and prompt a
+    // reconnect, rather than looking silently connected.
+    const snap = await this.db.getLatestSnapshot<SnapshotPayload>(req.user.id);
+    const statusFor = (p: Platform): { connected: boolean; error?: string } | null => {
+      const s = snap?.data.providers.find((ps) => ps.provider === p);
+      return s ? { connected: s.connected, error: s.error } : null;
+    };
     return {
       user: this.auth.toPublic(req.user),
       connections: {
         psn: !!conn?.psn_npsso,
         steam: !!conn?.steam_id,
         xbox: !!conn?.xbox_rtoken,
+      },
+      status: {
+        psn: statusFor('psn'),
+        steam: statusFor('steam'),
+        xbox: statusFor('xbox'),
       },
       steamId: conn?.steam_id ?? null,
       xboxGamertag: conn?.xbox_gamertag ?? null,

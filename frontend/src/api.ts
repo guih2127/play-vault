@@ -50,9 +50,19 @@ export async function logout(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
 }
 
+export interface ProviderConnStatus {
+  connected: boolean
+  error?: string
+}
+
 export interface Profile {
   user: User
   connections: { psn: boolean; steam: boolean; xbox: boolean }
+  status: {
+    psn: ProviderConnStatus | null
+    steam: ProviderConnStatus | null
+    xbox: ProviderConnStatus | null
+  }
   steamId: string | null
   xboxGamertag: string | null
   xboxConfigured: boolean

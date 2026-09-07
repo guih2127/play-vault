@@ -22,7 +22,8 @@ import { Backlog } from './Backlog'
 import { TrophiesPage } from './TrophiesPage'
 import { Users } from './Users'
 import { UserProfile } from './UserProfile'
-import { LoadingState } from './components/Spinner'
+import { LoadingState, Spinner } from './components/Spinner'
+import { WelcomeGuide } from './components/WelcomeGuide'
 import {
   IconOverview,
   IconLibrary,
@@ -50,6 +51,8 @@ const NAV_ITEMS: Array<{
 interface AppContext {
   refreshKey: number
   user: User
+  syncing: boolean
+  triggerSync: () => void
 }
 
 export function useAppContext(): AppContext {
@@ -64,18 +67,6 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
   const navigate = useNavigate()
   const [params] = useSearchParams()
 
-  // The Steam OpenID callback redirects back with ?connected=… — send the user to their profile.
-  useEffect(() => {
-    if (params.get('connected')) navigate('/profile', { replace: true })
-  }, [params, navigate])
-
-  // Track last sync time for the tooltip without an extra request on every page.
-  useEffect(() => {
-    fetchDashboard()
-      .then((d) => setLastSyncAt(d.lastSyncAt))
-      .catch(() => {})
-  }, [refreshKey])
-
   const runSync = useCallback(async () => {
     setSyncing(true)
     setError(null)
@@ -88,6 +79,23 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       setSyncing(false)
     }
   }, [])
+
+  // The OAuth callbacks (Steam/Xbox) redirect back with ?connected=… — send the user to their
+  // profile, and kick off a sync automatically on a successful connect so a first-time user
+  // doesn't have to hunt for the Sync button.
+  useEffect(() => {
+    const connected = params.get('connected')
+    if (!connected) return
+    navigate('/profile', { replace: true })
+    if (!connected.endsWith('_error')) void runSync()
+  }, [params, navigate, runSync])
+
+  // Track last sync time for the tooltip without an extra request on every page.
+  useEffect(() => {
+    fetchDashboard()
+      .then((d) => setLastSyncAt(d.lastSyncAt))
+      .catch(() => {})
+  }, [refreshKey])
 
   return (
     <div className="layout">
@@ -152,7 +160,17 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
       <main className="main">
         <div className="main-inner">
           {error ? <div className="banner-error">{error}</div> : null}
-          <Outlet context={{ refreshKey, user } satisfies AppContext} />
+          {syncing ? (
+            <div className="banner-sync" role="status" aria-live="polite">
+              <Spinner size={18} />
+              <span>Syncing your library… the first sync can take a minute.</span>
+            </div>
+          ) : null}
+          <Outlet
+            context={
+              { refreshKey, user, syncing, triggerSync: runSync } satisfies AppContext
+            }
+          />
         </div>
       </main>
     </div>
@@ -160,7 +178,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
 }
 
 function Home() {
-  const { refreshKey } = useAppContext()
+  const { refreshKey, syncing, triggerSync } = useAppContext()
   const [meta, setMeta] = useState<Dashboard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -184,6 +202,19 @@ function Home() {
   if (loading) return <LoadingState />
   if (error && !meta) return <div className="state state-error">{error}</div>
   if (!meta) return null
+
+  // First-run: nothing synced yet. Guide the user through connecting and syncing instead of
+  // showing an empty dashboard.
+  if (meta.totals.games === 0) {
+    return (
+      <WelcomeGuide
+        hasConnection={meta.providers.some((p) => p.connected)}
+        syncing={syncing}
+        onConnect={() => navigate('/profile')}
+        onSync={triggerSync}
+      />
+    )
+  }
 
   return (
     <Overview
@@ -238,8 +269,8 @@ function TrophiesRoute() {
 }
 
 function ProfileRoute() {
-  const { user } = useAppContext()
-  return <Profile user={user} />
+  const { user, triggerSync } = useAppContext()
+  return <Profile user={user} onConnected={triggerSync} />
 }
 
 function App() {
