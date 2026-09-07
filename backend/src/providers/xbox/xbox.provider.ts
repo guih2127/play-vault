@@ -29,6 +29,12 @@ interface XboxTitle {
   images?: Array<{ url: string; type: string }>;
 }
 
+/** An earned achievement before it's tied to its game (title name/cover are filled in later). */
+type EarnedAchievement = Pick<
+  RecentTrophy,
+  'name' | 'detail' | 'iconUrl' | 'earnedAt' | 'rarity'
+>;
+
 @Injectable()
 export class XboxProvider implements GameProvider {
   readonly platform = 'xbox' as const;
@@ -185,14 +191,25 @@ export class XboxProvider implements GameProvider {
     return `${last}|${earned}/${total}`;
   }
 
-  /** Fetch individual achievements only for titles that changed since the last sync (incremental). */
+  /** Store individual achievements for titles that changed since the last sync (incremental). */
   private async buildTrophyUpdates(
     session: XboxSession,
     titles: XboxTitle[],
     known: Map<string, string>,
   ): Promise<TrophyUpdate[]> {
     const changed = titles.filter((t) => known.get(`xbox:${t.titleId}`) !== this.syncKey(t));
-    this.logger.log(`Xbox trophy sync: ${changed.length}/${titles.length} titles changed`);
+    if (changed.length === 0) {
+      this.logger.log(`Xbox trophy sync: 0/${titles.length} titles changed`);
+      return [];
+    }
+
+    // One paginated call returns every earned Xbox One/Series achievement, grouped by title.
+    // (Per-title queries return the catalogue with the user's state stripped — all NotStarted —
+    // so the user's history endpoint is the only reliable source, joined back to titles by id.)
+    const earnedByTitle = await this.fetchEarnedAchievements(session);
+    this.logger.log(
+      `Xbox trophy sync: ${changed.length}/${titles.length} changed; modern earned across ${earnedByTitle.size} titles`,
+    );
 
     const updates: TrophyUpdate[] = [];
     for (let i = 0; i < changed.length; i += CONCURRENCY) {
@@ -201,7 +218,7 @@ export class XboxProvider implements GameProvider {
         batch.map(async (t) => ({
           npCommId: `xbox:${t.titleId}`,
           lastUpdated: this.syncKey(t),
-          trophies: await this.fetchAchievementDetails(session, t),
+          trophies: await this.trophiesForTitle(session, t, earnedByTitle),
         })),
       );
       updates.push(...res);
@@ -209,64 +226,69 @@ export class XboxProvider implements GameProvider {
     return updates;
   }
 
-  private async fetchAchievementDetails(
+  private async trophiesForTitle(
     session: XboxSession,
     t: XboxTitle,
+    earnedByTitle: Map<string, EarnedAchievement[]>,
   ): Promise<RecentTrophy[]> {
-    // Xbox One / Series titles expose earned achievements through the modern (contract v2)
-    // endpoint. Xbox 360 titles return nothing there — their unlocks live in the legacy
-    // (contract v1) endpoint — so fall back to it when v2 comes back empty but titlehub says
-    // the user has earned achievements for this title.
-    const summary = t.achievement?.currentAchievements ?? 0;
-    const modern = await this.fetchModernAchievements(session, t);
-    if (modern.length > 0) {
-      if (summary > 0) this.logger.log(`Xbox v2 ${t.name}: parsed ${modern.length}/${summary} earned`);
-      return modern;
+    const cover = this.coverFor(t);
+    const modern = earnedByTitle.get(String(t.titleId));
+    if (modern && modern.length > 0) {
+      return modern.map((a) => ({ provider: 'xbox', gameTitle: t.name, gameIconUrl: cover, ...a }));
     }
-    if (summary > 0) {
-      const legacy = await this.fetchLegacyAchievements(session, t);
-      this.logger.log(`Xbox v1 ${t.name}: parsed ${legacy.length}/${summary} earned (v2 empty)`);
-      return legacy;
+    // Xbox 360 titles don't appear in the modern achievement history; their unlocks live in the
+    // legacy (contract v1) endpoint, which does honour the user's state per title.
+    if ((t.achievement?.currentAchievements ?? 0) > 0) {
+      return this.fetchLegacyAchievements(session, t);
     }
-    return modern;
+    return [];
   }
 
-  private async fetchModernAchievements(
+  /**
+   * Page through the user's whole achievement history (modern, contract v2) and return every
+   * earned achievement grouped by its title id. This is the only endpoint that reflects the
+   * user's actual unlock state for Xbox One/Series titles.
+   */
+  private async fetchEarnedAchievements(
     session: XboxSession,
-    t: XboxTitle,
-  ): Promise<RecentTrophy[]> {
+  ): Promise<Map<string, EarnedAchievement[]>> {
+    const out = new Map<string, EarnedAchievement[]>();
+    let continuationToken: string | undefined;
+    let page = 0;
     try {
-      const { data } = await axios.get(
-        `${ACHIEVEMENTS}/users/xuid(${session.xuid})/achievements`,
-        {
-          headers: this.headers(session, '2'),
-          params: { titleId: t.titleId, maxItems: 1000 },
-          timeout: 20000,
-        },
-      );
-      const cover = this.coverFor(t);
-      const achievements: any[] = data?.achievements ?? [];
-      const out: RecentTrophy[] = [];
-      for (const a of achievements) {
-        if (a.progressState !== 'Achieved') continue;
-        const icon = this.httpsify((a.mediaAssets ?? []).find((m: any) => m.type === 'Icon')?.url);
-        const pct = a.rarity?.currentPercentage;
-        out.push({
-          provider: 'xbox',
-          gameTitle: t.name,
-          gameIconUrl: cover,
-          name: a.name,
-          detail: a.description ?? a.lockedDescription,
-          iconUrl: icon,
-          earnedAt: a.progression?.timeUnlocked,
-          rarity: pct != null ? Math.round(Number(pct) * 10) / 10 : undefined,
-        });
-      }
-      return out;
+      do {
+        const params: Record<string, unknown> = { maxItems: 1000 };
+        if (continuationToken) params.continuationToken = continuationToken;
+        const { data } = await axios.get(
+          `${ACHIEVEMENTS}/users/xuid(${session.xuid})/achievements`,
+          { headers: this.headers(session, '2'), params, timeout: 25000 },
+        );
+        for (const a of (data?.achievements ?? []) as any[]) {
+          if (a.progressState !== 'Achieved') continue;
+          const titleId = a.titleAssociations?.[0]?.id;
+          if (titleId == null) continue;
+          const icon = this.httpsify((a.mediaAssets ?? []).find((m: any) => m.type === 'Icon')?.url);
+          const pct = a.rarity?.currentPercentage;
+          const entry: EarnedAchievement = {
+            name: a.name,
+            detail: a.description ?? a.lockedDescription,
+            iconUrl: icon,
+            earnedAt: a.progression?.timeUnlocked,
+            rarity: pct != null ? Math.round(Number(pct) * 10) / 10 : undefined,
+          };
+          const key = String(titleId);
+          const arr = out.get(key);
+          if (arr) arr.push(entry);
+          else out.set(key, [entry]);
+        }
+        continuationToken = data?.pagingInfo?.continuationToken ?? undefined;
+        page++;
+      } while (continuationToken && page < 25);
     } catch (err) {
-      this.logAchievementError('v2', t, err);
-      return [];
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Xbox earned-achievement history failed: ${message}`);
     }
+    return out;
   }
 
   private async fetchLegacyAchievements(
