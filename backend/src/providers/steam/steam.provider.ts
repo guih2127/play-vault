@@ -19,6 +19,16 @@ interface OwnedGame {
 const CONCURRENCY = 8;
 const API = 'https://api.steampowered.com';
 
+/**
+ * A game worth checking for trophies: one that has actually been launched.
+ * Total playtime is a bad gate — you can unlock achievements in the first few
+ * minutes (or with playtime still reporting 0 mid-session), so we also accept
+ * any game with a recorded last-played time. Never-launched games are excluded.
+ */
+function hasBeenPlayed(playtimeMinutes: number, everPlayed: boolean): boolean {
+  return playtimeMinutes >= 1 || everPlayed;
+}
+
 @Injectable()
 export class SteamProvider implements GameProvider {
   readonly platform = 'steam' as const;
@@ -63,7 +73,7 @@ export class SteamProvider implements GameProvider {
       ]);
       const games = owned.map((g) => this.toNormalizedGame(g));
 
-      const withPlaytime = games.filter((g) => g.playtimeMinutes >= 60);
+      const withPlaytime = games.filter((g) => hasBeenPlayed(g.playtimeMinutes, !!g.lastPlayed));
       await this.enrichAchievements(withPlaytime);
 
       const trophyUpdates = await this.buildTrophyUpdates(owned, knownTrophyState ?? new Map());
@@ -144,7 +154,9 @@ export class SteamProvider implements GameProvider {
     owned: OwnedGame[],
     known: Map<string, string>,
   ): Promise<TrophyUpdate[]> {
-    const candidates = owned.filter((g) => (g.playtime_forever ?? 0) >= 60);
+    const candidates = owned.filter((g) =>
+      hasBeenPlayed(g.playtime_forever ?? 0, (g.rtime_last_played ?? 0) > 0),
+    );
     const changed = candidates.filter(
       (g) => known.get(`steam:${g.appid}`) !== String(g.rtime_last_played ?? 0),
     );
