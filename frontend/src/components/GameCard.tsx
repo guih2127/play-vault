@@ -238,15 +238,13 @@ export function GameModal({
 
           {readOnly ? null : (
             <>
-              {!beaten || playing ? (
-                <button
-                  className={`playing-btn ${playing ? 'playing-btn-on' : ''}`}
-                  onClick={togglePlaying}
-                  disabled={saving}
-                >
-                  {playing ? '▶ Stop playing' : '▶ Mark as currently playing'}
-                </button>
-              ) : null}
+              <button
+                className={`playing-btn ${playing ? 'playing-btn-on' : ''}`}
+                onClick={togglePlaying}
+                disabled={saving}
+              >
+                {playing ? '▶ Stop playing' : '▶ Mark as currently playing'}
+              </button>
               <button className="beaten-btn" onClick={toggleBeaten} disabled={platinum || saving}>
                 {platinum
                   ? 'Platinum (beaten)'

@@ -216,6 +216,7 @@ export class GamesService {
 
   async setPlaying(userId: number, key: string, playing: boolean): Promise<void> {
     await this.db.setPlaying(userId, key, playing);
+    if (playing) await this.db.setBeaten(userId, key, false);
   }
 
   /**
