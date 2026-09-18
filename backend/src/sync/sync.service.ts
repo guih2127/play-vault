@@ -132,13 +132,13 @@ export class SyncService {
   }
 
   /**
-   * A game a user tracked by hand (a backlog entry, or a manual "currently playing" game) can
-   * later show up in a provider sync with real playtime and trophies. When that happens we fold
-   * the hand-tracked entry into the synced game so its hours/trophies take over:
+   * A manually-added game can later show up in a provider sync with real playtime and trophies.
+   * When that happens we fold the manual entry into the synced game so its hours/trophies take
+   * over: the manual game hands its playing/beaten flags to the synced game and the manual
+   * duplicate is deleted (the synced playtime replaces the hand-entered hours).
    *
-   * - a matching **backlog** entry is moved to "currently playing" and removed from the backlog;
-   * - a matching **manual** game hands its playing/beaten flags to the synced game and the manual
-   *   duplicate is deleted (the synced playtime replaces the hand-entered hours).
+   * Backlog entries are intentionally left alone — a synced game keeps its own hours/trophies in
+   * the library, but a backlog item stays in the backlog and is never auto-moved to "playing".
    *
    * Matching is by normalized title (the same key aggregation uses), so e.g. a manually-added
    * "Elden Ring" reconciles with the synced PSN/Steam copy.
@@ -146,14 +146,6 @@ export class SyncService {
   private async reconcileWithLibrary(userId: number, games: AggregatedGame[]): Promise<void> {
     const syncedKeys = new Set(games.map((g) => g.key));
     if (syncedKeys.size === 0) return;
-
-    for (const b of await this.db.listBacklogGames(userId)) {
-      const key = mergeKey(b.title);
-      if (!syncedKeys.has(key)) continue;
-      await this.db.setPlaying(userId, key, true);
-      await this.db.deleteBacklogGame(userId, b.id);
-      this.logger.log(`Moved backlog game "${b.title}" to currently playing (now synced)`);
-    }
 
     const playing = await this.db.getPlayingKeys(userId);
     const beaten = await this.db.getBeatenKeys(userId);

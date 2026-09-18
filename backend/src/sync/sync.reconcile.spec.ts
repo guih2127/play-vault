@@ -49,7 +49,7 @@ async function newUser(db: DatabaseService): Promise<DbUser> {
 }
 
 describe('SyncService reconciliation with the manual library', () => {
-  it('moves a backlog game to currently playing when it shows up in a sync', async () => {
+  it('keeps a backlog game in the backlog and does not auto-mark it playing when synced', async () => {
     const db = await makeTestDb();
     const u = await newUser(db);
     await db.addBacklogGame(u.id, {
@@ -63,8 +63,9 @@ describe('SyncService reconciliation with the manual library', () => {
 
     await svc.sync(u.id);
 
-    expect(await db.listBacklogGames(u.id)).toHaveLength(0);
-    expect(await db.getPlayingKeys(u.id)).toContain('elden ring');
+    // Backlog is left untouched; the synced game carries its own hours/trophies in the library.
+    expect(await db.listBacklogGames(u.id)).toHaveLength(1);
+    expect(await db.getPlayingKeys(u.id)).not.toContain('elden ring');
     await db.onModuleDestroy();
   });
 
