@@ -3713,3 +3713,80 @@
 .profile-tabs {
   margin-bottom: 20px;
 }
+
+/* Sync / sign out shortcuts on the profile page — only shown on mobile, where these
+   actions are removed from the bottom tab bar to keep it uncluttered. */
+.profile-mobile-actions {
+  display: none;
+  gap: 10px;
+  margin: 4px 0 22px;
+}
+
+/* --- Mobile: turn the left icon rail into a bottom tab bar (issue #9) --- */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: space-around;
+    gap: 0;
+    padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px));
+    border-right: none;
+    border-top: 1px solid var(--border);
+    z-index: 50;
+  }
+
+  .sidebar-brand {
+    display: none;
+  }
+
+  /* Flatten the two containers so all tabs distribute evenly across the bar. */
+  .sidebar-nav,
+  .sidebar-foot {
+    display: contents;
+  }
+
+  .side-btn {
+    flex: 1;
+    flex-direction: column;
+    gap: 3px;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    padding: 6px 2px;
+    border-radius: 10px;
+  }
+
+  /* On a tab bar, the active tab reads better as a highlighted icon+label than a filled block. */
+  .side-btn-active,
+  .side-btn-active:hover {
+    background: none;
+    color: var(--accent);
+  }
+
+  .side-label {
+    display: block;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 600;
+  }
+
+  .mobile-hide {
+    display: none !important;
+  }
+
+  .profile-mobile-actions {
+    display: flex;
+  }
+
+  /* Keep page content clear of the fixed bottom bar. */
+  .main-inner {
+    padding: 16px 14px calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}

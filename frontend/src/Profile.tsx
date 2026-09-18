@@ -26,10 +26,16 @@ export function Profile({
   user,
   onChanged,
   onConnected,
+  onSync,
+  syncing,
+  onLogout,
 }: {
   user: User
   onChanged?: () => void
   onConnected?: () => void
+  onSync?: () => void
+  syncing?: boolean
+  onLogout?: () => void
 }) {
   const [data, setData] = useState<ProfileData | null>(null)
 
@@ -67,6 +73,20 @@ export function Profile({
           <div className="profile-name">{user.name ?? 'No name'}</div>
           {user.email ? <div className="profile-email">{user.email}</div> : null}
         </div>
+      </div>
+
+      {/* Sync / sign out live here on mobile, where they're removed from the bottom tab bar. */}
+      <div className="profile-mobile-actions">
+        {onSync ? (
+          <button className="login-submit" onClick={onSync} disabled={syncing}>
+            {syncing ? 'Syncing…' : 'Sync now'}
+          </button>
+        ) : null}
+        {onLogout ? (
+          <button className="provider-remove" onClick={onLogout} disabled={syncing}>
+            Sign out
+          </button>
+        ) : null}
       </div>
 
       <h3 className="profile-section-title">Connected accounts</h3>
