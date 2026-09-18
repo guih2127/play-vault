@@ -3752,29 +3752,13 @@
     display: contents;
   }
 
+  /* Icon-only tabs, same as the desktop rail — no text labels. */
   .side-btn {
     flex: 1;
-    flex-direction: column;
-    gap: 3px;
     width: auto;
-    height: auto;
+    height: 48px;
     min-width: 0;
-    padding: 6px 2px;
-    border-radius: 10px;
-  }
-
-  /* On a tab bar, the active tab reads better as a highlighted icon+label than a filled block. */
-  .side-btn-active,
-  .side-btn-active:hover {
-    background: none;
-    color: var(--accent);
-  }
-
-  .side-label {
-    display: block;
-    font-size: 10px;
-    line-height: 1;
-    font-weight: 600;
+    max-width: 88px;
   }
 
   .mobile-hide {
