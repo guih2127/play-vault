@@ -34,6 +34,13 @@ import {
   IconLogout,
 } from './icons'
 
+const PROVIDER_NAMES: Record<string, string> = {
+  psn: 'PSN',
+  steam: 'Steam',
+  switch: 'Switch',
+  xbox: 'Xbox',
+}
+
 const NAV_ITEMS: Array<{
   to: string
   label: string
@@ -71,7 +78,17 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
     setSyncing(true)
     setError(null)
     try {
-      await syncNow()
+      const result = await syncNow()
+      // A sync can succeed overall while one system (e.g. PSN) errors out. Surface which one
+      // failed instead of silently showing stale data — the previous data is kept server-side.
+      const failed = result.providers.filter((p) => p.error)
+      if (failed.length) {
+        setError(
+          failed
+            .map((p) => `${PROVIDER_NAMES[p.provider] ?? p.provider} sync failed: ${p.error}`)
+            .join(' · '),
+        )
+      }
       setRefreshKey((k) => k + 1)
     } catch (e) {
       setError((e as Error).message)

@@ -1,4 +1,11 @@
-import type { AggregatedGame, BacklogItem, Dashboard, RecentTrophy, User } from './types'
+import type {
+  AggregatedGame,
+  BacklogItem,
+  Dashboard,
+  ProviderStatus,
+  RecentTrophy,
+  User,
+} from './types'
 
 export async function getMe(): Promise<User | null> {
   const res = await fetch('/api/auth/me', { credentials: 'include' })
@@ -141,7 +148,13 @@ export async function getUserProfile(userId: number): Promise<UserProfileData> {
   return res.json()
 }
 
-export async function syncNow(): Promise<{ gameCount: number }> {
+export interface SyncResult {
+  createdAt: string
+  providers: ProviderStatus[]
+  gameCount: number
+}
+
+export async function syncNow(): Promise<SyncResult> {
   const res = await fetch('/api/sync', { method: 'POST' })
   if (!res.ok) throw new Error(`Sync failed (${res.status})`)
   return res.json()
