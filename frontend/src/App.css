@@ -3773,4 +3773,13 @@
   .main-inner {
     padding: 16px 14px calc(80px + env(safe-area-inset-bottom, 0px));
   }
+
+  /* Declutter Library cards on phones: drop the platform badges and the platinum/beaten
+     status tags from the cover (the "playing"/"manual" tags stay). Full detail is still in
+     the game modal. */
+  .game .badges-left,
+  .game .status-tag-plat,
+  .game .status-tag-beaten {
+    display: none;
+  }
 }
