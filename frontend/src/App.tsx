@@ -45,12 +45,14 @@ const NAV_ITEMS: Array<{
   to: string
   label: string
   Icon: (props: { size?: number }) => ReactNode
+  // Kept out of the mobile bottom bar to keep it to a clean set of primary tabs.
+  hideOnMobile?: boolean
 }> = [
   { to: '/', label: 'Overview', Icon: IconOverview },
   { to: '/library', label: 'Library', Icon: IconLibrary },
   { to: '/backlog', label: 'Backlog', Icon: IconBacklog },
   { to: '/trophies', label: 'Trophies', Icon: IconTrophy },
-  { to: '/users', label: 'Users', Icon: IconUsers },
+  { to: '/users', label: 'Users', Icon: IconUsers, hideOnMobile: true },
 ]
 
 // Shared state handed to routed pages: `refreshKey` bumps whenever a sync completes so pages
@@ -60,6 +62,7 @@ interface AppContext {
   user: User
   syncing: boolean
   triggerSync: () => void
+  onLogout: () => void
 }
 
 export function useAppContext(): AppContext {
@@ -120,12 +123,14 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
         <div className="sidebar-brand">P</div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(({ to, label, Icon }) => (
+          {NAV_ITEMS.map(({ to, label, Icon, hideOnMobile }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
-              className={({ isActive }) => `side-btn ${isActive ? 'side-btn-active' : ''}`}
+              className={({ isActive }) =>
+                `side-btn ${isActive ? 'side-btn-active' : ''}${hideOnMobile ? ' mobile-hide' : ''}`
+              }
               title={label}
               aria-label={label}
             >
@@ -137,7 +142,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
 
         <div className="sidebar-foot">
           <button
-            className="side-btn"
+            className="side-btn mobile-hide"
             onClick={runSync}
             disabled={syncing}
             title={`Sync${lastSyncAt ? ` · last: ${formatDateTime(lastSyncAt)}` : ''}`}
@@ -167,7 +172,12 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
             <span className="side-label">Profile</span>
           </NavLink>
 
-          <button className="side-btn" onClick={onLogout} title="Sign out" aria-label="Sign out">
+          <button
+            className="side-btn mobile-hide"
+            onClick={onLogout}
+            title="Sign out"
+            aria-label="Sign out"
+          >
             <IconLogout />
             <span className="side-label">Sign out</span>
           </button>
@@ -185,7 +195,13 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
           ) : null}
           <Outlet
             context={
-              { refreshKey, user, syncing, triggerSync: runSync } satisfies AppContext
+              {
+                refreshKey,
+                user,
+                syncing,
+                triggerSync: runSync,
+                onLogout,
+              } satisfies AppContext
             }
           />
         </div>
@@ -286,8 +302,10 @@ function TrophiesRoute() {
 }
 
 function ProfileRoute() {
-  const { user, triggerSync } = useAppContext()
-  return <Profile user={user} onConnected={triggerSync} />
+  const { user, triggerSync, syncing, onLogout } = useAppContext()
+  return (
+    <Profile user={user} onConnected={triggerSync} onSync={triggerSync} syncing={syncing} onLogout={onLogout} />
+  )
 }
 
 function App() {
