@@ -5,7 +5,8 @@ import type { GameProvider, ProviderCredentials } from '../providers/game-provid
 import type { Platform, ProviderStatus } from '../domain/game.model.js';
 import { DatabaseService } from '../db/database.service.js';
 import { CryptoService } from '../auth/crypto.service.js';
-import { mergeGames } from '../games/aggregation.js';
+import { mergeGames, mergeKey } from '../games/aggregation.js';
+import type { AggregatedGame } from '../games/aggregation.js';
 import type { SnapshotPayload } from '../games/snapshot.js';
 
 export interface SyncResult {
@@ -122,9 +123,50 @@ export class SyncService {
       await this.db.saveSnapshot(userId, createdAt, payload);
       this.logger.log(`Sync finished: ${games.length} games`);
 
+      await this.reconcileWithLibrary(userId, games);
+
       return { createdAt, providers, gameCount: games.length };
     } finally {
       this.running.delete(userId);
+    }
+  }
+
+  /**
+   * A game a user tracked by hand (a backlog entry, or a manual "currently playing" game) can
+   * later show up in a provider sync with real playtime and trophies. When that happens we fold
+   * the hand-tracked entry into the synced game so its hours/trophies take over:
+   *
+   * - a matching **backlog** entry is moved to "currently playing" and removed from the backlog;
+   * - a matching **manual** game hands its playing/beaten flags to the synced game and the manual
+   *   duplicate is deleted (the synced playtime replaces the hand-entered hours).
+   *
+   * Matching is by normalized title (the same key aggregation uses), so e.g. a manually-added
+   * "Elden Ring" reconciles with the synced PSN/Steam copy.
+   */
+  private async reconcileWithLibrary(userId: number, games: AggregatedGame[]): Promise<void> {
+    const syncedKeys = new Set(games.map((g) => g.key));
+    if (syncedKeys.size === 0) return;
+
+    for (const b of await this.db.listBacklogGames(userId)) {
+      const key = mergeKey(b.title);
+      if (!syncedKeys.has(key)) continue;
+      await this.db.setPlaying(userId, key, true);
+      await this.db.deleteBacklogGame(userId, b.id);
+      this.logger.log(`Moved backlog game "${b.title}" to currently playing (now synced)`);
+    }
+
+    const playing = await this.db.getPlayingKeys(userId);
+    const beaten = await this.db.getBeatenKeys(userId);
+    for (const m of await this.db.listManualGames(userId)) {
+      const key = mergeKey(m.title);
+      if (!syncedKeys.has(key)) continue;
+      const manualKey = `manual:${m.id}`;
+      if (playing.has(manualKey)) await this.db.setPlaying(userId, key, true);
+      if (beaten.has(manualKey)) await this.db.setBeaten(userId, key, true);
+      await this.db.deleteManualGame(userId, m.id);
+      await this.db.setPlaying(userId, manualKey, false);
+      await this.db.setBeaten(userId, manualKey, false);
+      this.logger.log(`Reconciled manual game "${m.title}" into its synced copy`);
     }
   }
 }
