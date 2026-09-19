@@ -1391,6 +1391,79 @@
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stat-level .stat-num {
+  color: #4aa3ff;
+}
+
+/* Small "PSN" hint on the Level stat — the level only reflects PlayStation trophies. */
+.stat-note {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #cfe6ff;
+  background: rgba(74, 163, 255, 0.18);
+  border: 1px solid rgba(74, 163, 255, 0.35);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+
+.home-greeting {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  letter-spacing: -0.01em;
+}
+
+.home-greeting-hi {
+  color: var(--text-dim);
+}
+
+.home-greeting-name {
+  color: var(--text);
+}
+
+/* Platform chips — small colored brand glyphs used instead of text badges. */
+.plat-chips {
+  display: inline-flex;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+.plat-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  color: #fff;
+  background: #444;
+  flex-shrink: 0;
+}
+
+.plat-ps {
+  background: #0070d1;
+}
+.plat-steam {
+  background: #1b2838;
+  color: #c7d5e0;
+}
+.plat-switch {
+  background: #e60012;
+}
+.plat-xbox {
+  background: #107c10;
+}
+.plat-pc {
+  background: #555c66;
+}
+.plat-other {
+  background: #444;
 }
 
 .widgets {

@@ -211,7 +211,7 @@ function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
 }
 
 function Home() {
-  const { refreshKey, syncing, triggerSync } = useAppContext()
+  const { refreshKey, syncing, triggerSync, user } = useAppContext()
   const [meta, setMeta] = useState<Dashboard | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,6 +252,7 @@ function Home() {
   return (
     <Overview
       meta={meta}
+      userName={user.name ?? user.email ?? undefined}
       onRefresh={load}
       onGoBacklog={() => navigate('/backlog')}
       onGoLibrary={() => navigate('/library')}
