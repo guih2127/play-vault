@@ -8,6 +8,7 @@ import type {
 } from './types'
 import { GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
+import { PlatformIcons } from './components/PlatformIcon'
 import { BacklogModal } from './Backlog'
 import {
   deleteBacklogGame,
@@ -25,7 +26,7 @@ const GRID_MIN = 150
 const GRID_GAP = 12
 const GRID_ROWS = 3
 const HOME_LIMIT = 5
-import { badgeClass, formatDate, formatNumber, providerLabel } from './format'
+import { formatDate, formatNumber, providerLabel } from './format'
 
 interface PlatItem {
   key: string
@@ -44,6 +45,13 @@ const PRIORITY_LABEL: Record<number, { label: string; cls: string }> = {
   0: { label: 'Low', cls: 'prio-low' },
 }
 
+function greetingFor(date = new Date()): string {
+  const h = date.getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export function Overview({
   meta,
   onRefresh,
@@ -52,6 +60,7 @@ export function Overview({
   onGoPlaying,
   onGoTrophies,
   userId,
+  userName,
   readOnly = false,
 }: {
   meta: Dashboard
@@ -61,6 +70,7 @@ export function Overview({
   onGoPlaying: () => void
   onGoTrophies: () => void
   userId?: number
+  userName?: string
   readOnly?: boolean
 }) {
   const heroImage =
@@ -125,13 +135,24 @@ export function Overview({
     void onRefresh()
   }
 
+  const level = meta.trophyProfile?.level
+
   return (
     <div className="dashboard">
+      {userName && !readOnly ? (
+        <div className="home-greeting">
+          <span className="home-greeting-hi">{greetingFor()},</span>{' '}
+          <span className="home-greeting-name">{userName}</span>
+        </div>
+      ) : null}
       <div className="hero">
         {heroImage ? (
           <div className="hero-bg" style={{ backgroundImage: `url(${heroImage})` }} />
         ) : null}
         <div className="stat-strip">
+          {level != null ? (
+            <StatItem value={formatNumber(level)} label="Level" accent="level" note="PSN" />
+          ) : null}
           <StatItem value={formatNumber(meta.counts.beaten)} label="Beaten" accent="green" />
           <StatItem value={formatNumber(meta.counts.platinum)} label="Platinums" accent="plat" />
           <StatItem
@@ -263,9 +284,7 @@ function PlayingTile({ game, onOpen }: { game: AggregatedGame; onOpen: () => voi
       <div className="nextup-info">
         <div className="nextup-title">{game.title}</div>
         <div className="nextup-sub">
-          <span className={`badge ${badgeClass(game.platformLabels[0] ?? '')}`}>
-            {game.platformLabels[0] ?? '—'}
-          </span>
+          <PlatformIcons labels={game.platformLabels} />
           <span className={`playing-status ${beaten ? 'playing-status-on' : ''}`}>
             {beaten ? '✓ Beaten' : 'Not beaten'}
           </span>
@@ -288,15 +307,20 @@ function StatItem({
   value,
   label,
   accent,
+  note,
 }: {
   value: string
   label: string
-  accent?: 'green' | 'plat' | 'gold'
+  accent?: 'green' | 'plat' | 'gold' | 'level'
+  note?: string
 }) {
   return (
     <div className={`stat-item ${accent ? `stat-${accent}` : ''}`}>
       <div className="stat-num">{value}</div>
-      <div className="stat-cap">{label}</div>
+      <div className="stat-cap">
+        {label}
+        {note ? <span className="stat-note">{note}</span> : null}
+      </div>
     </div>
   )
 }
@@ -580,7 +604,7 @@ function NextUpWidget({
                       {it.title}
                     </div>
                     <div className="nextup-sub">
-                      <span className={`badge ${badgeClass(it.platform)}`}>{it.platform}</span>
+                      <PlatformIcons labels={[it.platform]} />
                       <span className={`prio-tag ${prio.cls}`}>{prio.label}</span>
                     </div>
                   </div>

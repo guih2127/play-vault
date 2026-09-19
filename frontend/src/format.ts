@@ -33,6 +33,19 @@ export function providerLabel(provider: 'psn' | 'steam' | 'xbox'): string {
   return 'Steam'
 }
 
+export type PlatformKey = 'ps' | 'steam' | 'switch' | 'xbox' | 'pc' | 'other'
+
+/** Collapse a platform label (e.g. "PS5", "PS Vita", "Steam") to a platform family for icons. */
+export function platformKey(label: string): PlatformKey {
+  const l = label.toLowerCase()
+  if (l.includes('vita') || l.includes('ps') || l.includes('playstation')) return 'ps'
+  if (l.includes('steam')) return 'steam'
+  if (l.includes('switch')) return 'switch'
+  if (l.includes('xbox')) return 'xbox'
+  if (l.includes('pc')) return 'pc'
+  return 'other'
+}
+
 export function badgeClass(label: string): string {
   const l = label.toLowerCase()
   if (l.includes('ps5')) return 'badge-ps5'
