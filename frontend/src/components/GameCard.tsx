@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AggregatedGame, DlcGroup, TrophySet } from '../types'
 import { formatDate, formatHours } from '../format'
-import { PlatformBadge } from './PlatformTag'
+import { PlatformBadge, dedupePlatformLabels } from './PlatformTag'
 
 export function pct(a: number, b: number): number {
   return b ? Math.round((a / b) * 100) : 0
@@ -11,11 +11,7 @@ function isPlatinum(game: AggregatedGame): boolean {
   return game.platinum.earned > 0
 }
 
-function playtimeText(game: AggregatedGame): string {
-  return game.playtimeKnown ? formatHours(game.totalPlaytimeMinutes) : 'playtime unknown'
-}
-
-function PlatinumTrophy({ className }: { className?: string }) {
+export function PlatinumTrophy({ className }: { className?: string }) {
   return (
     <svg
       className={`plat-trophy ${className ?? ''}`}
@@ -32,16 +28,6 @@ function PlatinumTrophy({ className }: { className?: string }) {
   )
 }
 
-function PlatformBadges({ labels }: { labels: string[] }) {
-  return (
-    <div className="badges badges-left">
-      {labels.map((p) => (
-        <PlatformBadge key={p} label={p} />
-      ))}
-    </div>
-  )
-}
-
 export function GameCard({
   game,
   onOpen,
@@ -50,38 +36,31 @@ export function GameCard({
   onOpen: (key: string) => void
 }) {
   const platinum = isPlatinum(game)
-  const beaten = platinum || !!game.beaten
-  const playing = !!game.playing
+  const earned = game.trophySets.reduce((s, t) => s + t.earned, 0)
+  const total = game.trophySets.reduce((s, t) => s + t.total, 0)
+  const progress = total ? pct(earned, total) : null
   return (
-    <div className="card game" onClick={() => onOpen(game.key)}>
-      <div className="cover">
-        {game.coverUrl ? (
-          <img src={game.coverUrl} alt={game.title} loading="lazy" />
-        ) : (
-          <div className="cover-fallback">{game.title.slice(0, 1)}</div>
-        )}
-        <PlatformBadges labels={game.platformLabels} />
-        {platinum || beaten || playing || game.manual ? (
-          <div className="badges badges-bottom">
-            {platinum ? (
-              <span className="status-tag status-tag-plat">
-                <PlatinumTrophy /> Platinum
-              </span>
-            ) : null}
-            {beaten ? <span className="status-tag status-tag-beaten">✓ Beaten</span> : null}
-            {playing && !beaten ? (
-              <span className="status-tag status-tag-playing">▶ Playing</span>
-            ) : null}
-            {game.manual ? <span className="status-tag status-tag-manual">✎ Manual</span> : null}
-          </div>
-        ) : null}
+    <div className="bc-tile bc-card" title={game.title} onClick={() => onOpen(game.key)}>
+      {game.coverUrl ? (
+        <img className="bc-cover" src={game.coverUrl} alt={game.title} loading="lazy" />
+      ) : (
+        <div className="bc-cover bc-cover-empty">{game.title.slice(0, 1)}</div>
+      )}
+      <div className="bc-title">{game.title}</div>
+      <div className="bc-meta">
+        <span className="bc-platforms">
+          {dedupePlatformLabels(game.platformLabels).map((p) => (
+            <PlatformBadge key={p} label={p} />
+          ))}
+        </span>
+        {progress != null ? <span className="bc-pct">{progress}%</span> : null}
+        {platinum ? <PlatinumTrophy className="bc-plat" /> : null}
       </div>
-      <div className="game-info">
-        <div className="game-title" title={game.title}>
-          {game.title}
+      {progress != null ? (
+        <div className="bc-bar">
+          <div className="bc-bar-fill" style={{ width: `${progress}%` }} />
         </div>
-        <div className="game-meta">{playtimeText(game)}</div>
-      </div>
+      ) : null}
     </div>
   )
 }
@@ -153,7 +132,7 @@ export function GameModal({
           <div className="modal-hero">
             <h2 className="modal-title">{game.title}</h2>
             <div className="modal-platforms">
-              {game.platformLabels.map((p) => (
+              {dedupePlatformLabels(game.platformLabels).map((p) => (
                 <PlatformBadge key={p} label={p} />
               ))}
             </div>

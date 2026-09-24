@@ -1273,6 +1273,24 @@
   color: var(--text-dim);
 }
 
+/* Backlog widget "Next up" priority: a vertical bar + colored text, no pill. Bar and text both
+   take the priority color via currentColor (from .prio-high/.prio-mid/.prio-low). */
+.prio-bar-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.prio-bar-tag .prio-bar {
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
 .prio-block {
   display: flex;
   align-items: center;
@@ -1462,14 +1480,15 @@
 .widget-head > .widget-link {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: none;
+  border: none;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
   line-height: 1;
   transition:
     background 0.15s ease,
@@ -1662,7 +1681,7 @@
 .nextup-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
 .nextup-item {
@@ -1719,17 +1738,13 @@
   grid-column: 1 / -1;
 }
 
-.mini-grid {
+.bc-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
 }
 
-.mini-tile {
-  position: relative;
-}
-
-.mini-tile-btn {
+.bc-tile {
   display: block;
   width: 100%;
   padding: 0;
@@ -1741,59 +1756,84 @@
   cursor: pointer;
 }
 
-.mini-tile-btn .mini-cover {
+.bc-cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-soft);
   transition:
     transform 0.15s ease,
     border-color 0.15s ease;
 }
 
-.mini-tile-btn:hover .mini-cover {
+.bc-tile:hover .bc-cover {
   transform: translateY(-2px);
   border-color: var(--accent);
 }
 
-.mini-cover {
-  width: 100%;
-  aspect-ratio: 1 / 1;
-  object-fit: cover;
-  border-radius: 10px;
-  background: var(--bg-2);
-  border: 1px solid var(--border-soft);
-}
-
-.mini-cover-empty {
+.bc-cover-empty {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 30px;
   font-weight: 800;
   color: var(--text-mut);
 }
 
-.mini-plat {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+.bc-title {
+  margin-top: 8px;
   font-size: 13px;
-  background: rgba(10, 20, 40, 0.6);
-  border: 1px solid rgba(143, 179, 230, 0.65);
-  border-radius: 6px;
-  padding: 1px 5px;
-  box-shadow:
-    0 0 8px rgba(143, 179, 230, 0.7),
-    0 0 14px rgba(143, 179, 230, 0.4);
-  text-shadow:
-    0 0 6px rgba(170, 205, 245, 0.95),
-    0 0 10px rgba(143, 179, 230, 0.7);
-}
-
-.mini-title {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--text-dim);
+  font-weight: 600;
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.bc-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.bc-platforms {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.bc-pct {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--plat);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.bc-plat {
+  color: var(--plat);
+  flex-shrink: 0;
+}
+
+.bc-bar {
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.bc-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6f5bd6, #9d8bf0);
 }
 
 /* ---------- trophies page ---------- */
@@ -1801,7 +1841,7 @@
 .widget-head-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 
 .trophy-profile {
@@ -3355,6 +3395,13 @@
   margin-top: 3px;
 }
 
+/* In the home widget the rarity sits right after the platform icon, so drop the fixed-width
+   right alignment (used on the full Trophies page) that would push the % away from the icon. */
+.tro-mini-meta .tro-rarity {
+  min-width: 0;
+  text-align: left;
+}
+
 .plat-row-btn {
   width: 100%;
   background: none;
@@ -3450,7 +3497,7 @@
 .playing-pct {
   font-size: 12px;
   font-weight: 700;
-  color: #4fd0dc;
+  color: var(--green);
 }
 
 .playing-pct-sub {
@@ -3458,10 +3505,18 @@
   color: var(--text-dim);
 }
 
+.dot-sep {
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
 .playing-hours {
   font-size: 12px;
   color: var(--text-dim);
-  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .playing-btn {
@@ -3633,9 +3688,9 @@
   }
 
   /* Beaten & completed: smaller cover tiles (more per row) on phones. */
-  .mini-grid {
-    grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
-    gap: 10px;
+  .bc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
   }
 
   /* --- Library / Backlog: smaller tiles (~3 across on a phone) --- */

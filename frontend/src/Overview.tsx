@@ -6,7 +6,7 @@ import type {
   ProviderTrophies,
   RecentTrophy,
 } from './types'
-import { GameModal } from './components/GameCard'
+import { GameModal, PlatinumTrophy } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
 import { BacklogModal } from './Backlog'
 import {
@@ -21,12 +21,15 @@ import {
   updateManualHours,
 } from './api'
 
-const GRID_MIN = 150
-const GRID_GAP = 12
+// GRID_GAP must match the .bc-grid `gap` in CSS so the JS column count equals what actually
+// renders — otherwise `visible` slices too many games and the last row ends up ragged.
+const GRID_MIN = 200
+const GRID_GAP = 16
 const GRID_ROWS = 3
-const HOME_LIMIT = 5
+const HOME_LIMIT = 3
 import { formatDate, formatNumber } from './format'
-import { PlatformBadge, SourceTag } from './components/PlatformTag'
+import { PlatformBadge, SourceTag, dedupePlatformLabels } from './components/PlatformTag'
+import { IconClock, IconChevronRight } from './icons'
 
 interface PlatItem {
   key: string
@@ -221,20 +224,17 @@ function PlayingWidget({
         <div className="widget-head-right">
           {games.length ? <span className="widget-count">{games.length}</span> : null}
           <button className="widget-link" onClick={onGoPlaying} aria-label="Open currently playing">
-            →
+            See all <IconChevronRight size={14} />
           </button>
         </div>
       </div>
       <div className="widget-body">
         {games.length ? (
-          <>
-            <div className="plat-latest-head">Playing right now</div>
-            <div className="nextup-list">
-              {games.slice(0, HOME_LIMIT).map((g) => (
-                <PlayingTile key={g.key} game={g} onOpen={() => onOpenGame(g)} />
-              ))}
-            </div>
-          </>
+          <div className="nextup-list">
+            {games.slice(0, HOME_LIMIT).map((g) => (
+              <PlayingTile key={g.key} game={g} onOpen={() => onOpenGame(g)} />
+            ))}
+          </div>
         ) : (
           <div className="widget-empty">
             Nothing in progress right now.
@@ -270,15 +270,19 @@ function PlayingTile({ game, onOpen }: { game: AggregatedGame; onOpen: () => voi
           </span>
           {progress != null ? (
             <span className="playing-pct">
-              🏆 {progress}%{' '}
+              <span className="dot-sep">·</span> {progress}%{' '}
               <span className="playing-pct-sub">
                 ({earned}/{total})
               </span>
             </span>
           ) : null}
-          {hours ? <span className="playing-hours">{hours}</span> : null}
         </div>
       </div>
+      {hours ? (
+        <span className="playing-hours">
+          <IconClock size={13} /> {hours}
+        </span>
+      ) : null}
     </button>
   )
 }
@@ -352,13 +356,6 @@ function TrophiesWidget({
       : trophiesList[provider]
   const showPlat = provider === 'psn' || provider === 'all'
 
-  const listHead =
-    mode === 'trophies'
-      ? 'Latest trophies'
-      : provider === 'steam'
-        ? 'Latest 100%'
-        : 'Latest platinums'
-
   return (
     <div className="widget widget-trophies">
       <div className="widget-head">
@@ -399,7 +396,7 @@ function TrophiesWidget({
             </button>
           </div>
           <button className="widget-link" onClick={onGoTrophies} aria-label="Open trophies">
-            →
+            See all <IconChevronRight size={14} />
           </button>
         </div>
       </div>
@@ -421,7 +418,6 @@ function TrophiesWidget({
           </div>
         </div>
         <div className="plat-latest">
-          <div className="plat-latest-head">{listHead}</div>
           {mode === 'trophies' ? (
             tros.length ? (
               <div className="plat-list">
@@ -552,12 +548,11 @@ function NextUpWidget({
         <div className="widget-head-right">
           {count ? <span className="widget-count">{count}</span> : null}
           <button className="widget-link" onClick={onGoBacklog} aria-label="Open backlog">
-            →
+            See all <IconChevronRight size={14} />
           </button>
         </div>
       </div>
       <div className="widget-body">
-        <div className="plat-latest-head">Next up</div>
         {items.length ? (
           <div className="nextup-list">
             {items.slice(0, HOME_LIMIT).map((it) => {
@@ -580,7 +575,10 @@ function NextUpWidget({
                     </div>
                     <div className="nextup-sub">
                       <PlatformBadge label={it.platform} />
-                      <span className={`prio-tag ${prio.cls}`}>{prio.label}</span>
+                      <span className={`prio-bar-tag ${prio.cls}`}>
+                        <span className="prio-bar" />
+                        {prio.label}
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -632,28 +630,47 @@ function BeatenWidget({
       <div className="widget-head">
         <span className="widget-title">Beaten &amp; completed</span>
         <button className="widget-link" onClick={onGoLibrary} aria-label="Open library">
-          →
+          See all <IconChevronRight size={14} />
         </button>
       </div>
       <div className="widget-body">
         {games.length ? (
-          <div className="mini-grid" ref={gridRef}>
-            {visible.map((g) => (
-              <button
-                key={g.key}
-                className="mini-tile mini-tile-btn"
-                title={g.title}
-                onClick={() => onOpenGame(g)}
-              >
-                {g.coverUrl ? (
-                  <img className="mini-cover" src={g.coverUrl} alt={g.title} loading="lazy" />
-                ) : (
-                  <div className="mini-cover mini-cover-empty">{g.title.slice(0, 1)}</div>
-                )}
-                {g.platinum.earned > 0 ? <span className="mini-plat">🏆</span> : null}
-                <div className="mini-title">{g.title}</div>
-              </button>
-            ))}
+          <div className="bc-grid" ref={gridRef}>
+            {visible.map((g) => {
+              const earned = g.trophySets.reduce((s, t) => s + t.earned, 0)
+              const total = g.trophySets.reduce((s, t) => s + t.total, 0)
+              const progress = total ? Math.round((earned / total) * 100) : null
+              const platinum = g.platinum.earned > 0
+              return (
+                <button
+                  key={g.key}
+                  className="bc-tile"
+                  title={g.title}
+                  onClick={() => onOpenGame(g)}
+                >
+                  {g.coverUrl ? (
+                    <img className="bc-cover" src={g.coverUrl} alt={g.title} loading="lazy" />
+                  ) : (
+                    <div className="bc-cover bc-cover-empty">{g.title.slice(0, 1)}</div>
+                  )}
+                  <div className="bc-title">{g.title}</div>
+                  <div className="bc-meta">
+                    <span className="bc-platforms">
+                      {dedupePlatformLabels(g.platformLabels).map((p) => (
+                        <PlatformBadge key={p} label={p} />
+                      ))}
+                    </span>
+                    {progress != null ? <span className="bc-pct">{progress}%</span> : null}
+                    {platinum ? <PlatinumTrophy className="bc-plat" /> : null}
+                  </div>
+                  {progress != null ? (
+                    <div className="bc-bar">
+                      <div className="bc-bar-fill" style={{ width: `${progress}%` }} />
+                    </div>
+                  ) : null}
+                </button>
+              )
+            })}
           </div>
         ) : (
           <div className="widget-empty">No beaten games yet.</div>
