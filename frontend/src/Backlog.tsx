@@ -9,7 +9,8 @@ import {
 } from './api'
 import type { SearchResult } from './api'
 import type { BacklogItem } from './types'
-import { badgeClass, formatDate } from './format'
+import { formatDate } from './format'
+import { PlatformBadge } from './components/PlatformTag'
 
 type SortKey = 'priority' | 'recent' | 'title'
 type PriorityFilter = 'all' | '2' | '1' | '0'
@@ -215,7 +216,7 @@ function BacklogCard({ item, onOpen }: { item: BacklogItem; onOpen: (id: number)
           <div className="cover-fallback">{item.title.slice(0, 1)}</div>
         )}
         <div className="badges badges-left">
-          <span className={`badge ${badgeClass(item.platform)}`}>{item.platform}</span>
+          <PlatformBadge label={item.platform} />
         </div>
         <div className="badges badges-bottom">
           <span className={`prio-tag ${prio.cls}`}>{prio.label}</span>
@@ -279,7 +280,7 @@ export function BacklogModal({
           <div className="modal-hero">
             <h2 className="modal-title">{item.title}</h2>
             <div className="modal-platforms">
-              <span className={`badge ${badgeClass(item.platform)}`}>{item.platform}</span>
+              <PlatformBadge label={item.platform} />
             </div>
           </div>
         </div>

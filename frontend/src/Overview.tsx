@@ -25,7 +25,8 @@ const GRID_MIN = 150
 const GRID_GAP = 12
 const GRID_ROWS = 3
 const HOME_LIMIT = 5
-import { badgeClass, formatDate, formatNumber, providerLabel } from './format'
+import { formatDate, formatNumber } from './format'
+import { PlatformBadge, SourceTag } from './components/PlatformTag'
 
 interface PlatItem {
   key: string
@@ -263,9 +264,7 @@ function PlayingTile({ game, onOpen }: { game: AggregatedGame; onOpen: () => voi
       <div className="nextup-info">
         <div className="nextup-title">{game.title}</div>
         <div className="nextup-sub">
-          <span className={`badge ${badgeClass(game.platformLabels[0] ?? '')}`}>
-            {game.platformLabels[0] ?? '—'}
-          </span>
+          <PlatformBadge label={game.platformLabels[0] ?? '—'} />
           <span className={`playing-status ${beaten ? 'playing-status-on' : ''}`}>
             {beaten ? '✓ Beaten' : 'Not beaten'}
           </span>
@@ -319,7 +318,7 @@ function TrophiesWidget({
   onGoTrophies: () => void
 }) {
   const [provider, setProvider] = useState<'all' | 'psn' | 'steam'>('all')
-  const [mode, setMode] = useState<'platinums' | 'trophies'>('platinums')
+  const [mode, setMode] = useState<'platinums' | 'trophies'>('trophies')
 
   const byDateAll = <T extends { earnedAt?: string }>(...lists: T[][]) =>
     lists.flat().sort((x, y) => (y.earnedAt ?? '').localeCompare(x.earnedAt ?? ''))
@@ -481,7 +480,7 @@ function PlatinumMiniRow({ p, onOpen }: { p: PlatItem; onOpen?: () => void }) {
           {p.earnedAt ? ` · ${formatDate(p.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <span className={`src-tag src-${p.provider}`}>{providerLabel(p.provider)}</span>
+          <SourceTag provider={p.provider} />
           {p.rarity != null ? <span className="tro-rarity">{p.rarity}%</span> : null}
         </span>
       </div>
@@ -527,7 +526,7 @@ function TrophyMiniRow({ tr, onOpen }: { tr: RecentTrophy; onOpen: () => void })
           {tr.earnedAt ? ` · ${formatDate(tr.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <span className={`src-tag src-${tr.provider}`}>{providerLabel(tr.provider)}</span>
+          <SourceTag provider={tr.provider} />
           {tr.rarity != null ? <span className="tro-rarity">{tr.rarity}%</span> : null}
         </span>
       </div>
@@ -580,7 +579,7 @@ function NextUpWidget({
                       {it.title}
                     </div>
                     <div className="nextup-sub">
-                      <span className={`badge ${badgeClass(it.platform)}`}>{it.platform}</span>
+                      <PlatformBadge label={it.platform} />
                       <span className={`prio-tag ${prio.cls}`}>{prio.label}</span>
                     </div>
                   </div>

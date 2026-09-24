@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import type { RecentTrophy } from '../types'
-import { formatDate, providerLabel } from '../format'
+import { formatDate } from '../format'
+import { SourceTag } from './PlatformTag'
 
 function rarityLabel(rarity?: number): string | null {
   if (rarity == null) return null
@@ -83,9 +84,7 @@ export function TrophyModal({ trophy, onClose }: { trophy: RecentTrophy; onClose
             <div className="trophy-modal-game-info">
               <span className="trophy-modal-game-title">{trophy.gameTitle}</span>
               <span className="trophy-modal-game-sub">
-                <span className={`src-tag src-${trophy.provider}`}>
-                  {providerLabel(trophy.provider)}
-                </span>
+                <SourceTag provider={trophy.provider} />
                 {trophy.earnedAt ? <span>Earned {formatDate(trophy.earnedAt)}</span> : null}
               </span>
             </div>

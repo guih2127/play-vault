@@ -12,7 +12,8 @@ import { GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
 import { LoadingState } from './components/Spinner'
 import { ActivityTab } from './ActivityChart'
-import { formatDate, formatNumber, providerLabel } from './format'
+import { formatDate, formatNumber } from './format'
+import { SourceTag } from './components/PlatformTag'
 
 const TROPHIES_PER_PAGE = 10
 const PLATINUMS_PER_PAGE = 10
@@ -232,9 +233,7 @@ export function TrophiesPage({
                       </div>
                     </div>
                     <div className="tro-meta">
-                      <span className={`src-tag src-${c.provider}`}>
-                        {providerLabel(c.provider)}
-                      </span>
+                      <SourceTag provider={c.provider} />
                       {c.rarity != null ? <span className="tro-rarity">{c.rarity}%</span> : null}
                     </div>
                   </>
@@ -445,7 +444,7 @@ function TrophyRow({ t, onOpen }: { t: RecentTrophy; onOpen: () => void }) {
         </div>
       </div>
       <div className="tro-meta">
-        <span className={`src-tag src-${t.provider}`}>{providerLabel(t.provider)}</span>
+        <SourceTag provider={t.provider} />
         {t.rarity != null ? <span className="tro-rarity">{t.rarity}%</span> : null}
       </div>
     </button>

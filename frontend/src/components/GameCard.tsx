@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AggregatedGame, DlcGroup, TrophySet } from '../types'
-import { badgeClass, formatDate, formatHours } from '../format'
+import { formatDate, formatHours } from '../format'
+import { PlatformBadge } from './PlatformTag'
 
 export function pct(a: number, b: number): number {
   return b ? Math.round((a / b) * 100) : 0
@@ -35,9 +36,7 @@ function PlatformBadges({ labels }: { labels: string[] }) {
   return (
     <div className="badges badges-left">
       {labels.map((p) => (
-        <span key={p} className={`badge ${badgeClass(p)}`}>
-          {p}
-        </span>
+        <PlatformBadge key={p} label={p} />
       ))}
     </div>
   )
@@ -155,9 +154,7 @@ export function GameModal({
             <h2 className="modal-title">{game.title}</h2>
             <div className="modal-platforms">
               {game.platformLabels.map((p) => (
-                <span key={p} className={`badge ${badgeClass(p)}`}>
-                  {p}
-                </span>
+                <PlatformBadge key={p} label={p} />
               ))}
             </div>
           </div>

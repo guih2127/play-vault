@@ -12,6 +12,7 @@ import {
 import type { SearchResult } from './api'
 import type { AggregatedGame } from './types'
 import { GameCard, GameModal, pct } from './components/GameCard'
+import { PlatformBadge } from './components/PlatformTag'
 
 type SortKey = 'trophies' | 'playtime' | 'recent' | 'title' | 'platinum'
 type StatusFilter = 'all' | 'playing' | 'platinum' | 'beaten' | 'unbeaten' | 'manual'
@@ -410,7 +411,7 @@ function AddGameModal({
             )}
             <div className="add-platform-note">
               <span>Platform</span>
-              <span className="badge badge-switch">Nintendo Switch 2</span>
+              <PlatformBadge label="Nintendo Switch 2" />
             </div>
           </div>
 
