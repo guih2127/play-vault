@@ -6,7 +6,7 @@ import type {
   ProviderTrophies,
   RecentTrophy,
 } from './types'
-import { GameModal, PlatinumTrophy } from './components/GameCard'
+import { GameCard, GameModal } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
 import { BacklogModal } from './Backlog'
 import {
@@ -21,14 +21,14 @@ import {
   updateManualHours,
 } from './api'
 
-// GRID_GAP must match the .bc-grid `gap` in CSS so the JS column count equals what actually
+// GRID_GAP must match the widget grid `gap` in CSS so the JS column count equals what actually
 // renders — otherwise `visible` slices too many games and the last row ends up ragged.
 const GRID_MIN = 200
-const GRID_GAP = 16
-const GRID_ROWS = 3
+const GRID_GAP = 4
+const GRID_ROWS = 2
 const HOME_LIMIT = 3
 import { formatDate, formatNumber } from './format'
-import { PlatformBadge, SourceTag, dedupePlatformLabels } from './components/PlatformTag'
+import { PlatformBadge, SourceTag } from './components/PlatformTag'
 import { IconClock, IconChevronRight } from './icons'
 
 interface PlatItem {
@@ -635,42 +635,10 @@ function BeatenWidget({
       </div>
       <div className="widget-body">
         {games.length ? (
-          <div className="bc-grid" ref={gridRef}>
-            {visible.map((g) => {
-              const earned = g.trophySets.reduce((s, t) => s + t.earned, 0)
-              const total = g.trophySets.reduce((s, t) => s + t.total, 0)
-              const progress = total ? Math.round((earned / total) * 100) : null
-              const platinum = g.platinum.earned > 0
-              return (
-                <button
-                  key={g.key}
-                  className="bc-tile"
-                  title={g.title}
-                  onClick={() => onOpenGame(g)}
-                >
-                  {g.coverUrl ? (
-                    <img className="bc-cover" src={g.coverUrl} alt={g.title} loading="lazy" />
-                  ) : (
-                    <div className="bc-cover bc-cover-empty">{g.title.slice(0, 1)}</div>
-                  )}
-                  <div className="bc-title">{g.title}</div>
-                  <div className="bc-meta">
-                    <span className="bc-platforms">
-                      {dedupePlatformLabels(g.platformLabels).map((p) => (
-                        <PlatformBadge key={p} label={p} />
-                      ))}
-                    </span>
-                    {progress != null ? <span className="bc-pct">{progress}%</span> : null}
-                    {platinum ? <PlatinumTrophy className="bc-plat" /> : null}
-                  </div>
-                  {progress != null ? (
-                    <div className="bc-bar">
-                      <div className="bc-bar-fill" style={{ width: `${progress}%` }} />
-                    </div>
-                  ) : null}
-                </button>
-              )
-            })}
+          <div className="bc-grid bc-grid-flush" ref={gridRef}>
+            {visible.map((g) => (
+              <GameCard key={g.key} game={g} onOpen={() => onOpenGame(g)} />
+            ))}
           </div>
         ) : (
           <div className="widget-empty">No beaten games yet.</div>

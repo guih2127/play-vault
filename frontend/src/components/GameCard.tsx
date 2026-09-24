@@ -36,9 +36,10 @@ export function GameCard({
   onOpen: (key: string) => void
 }) {
   const platinum = isPlatinum(game)
-  const earned = game.trophySets.reduce((s, t) => s + t.earned, 0)
-  const total = game.trophySets.reduce((s, t) => s + t.total, 0)
-  const progress = total ? pct(earned, total) : null
+  // Show the most-complete version's progress: a game platinumed on PS5 should read 100% even if
+  // it also has a single, unrelated Steam achievement (which would drag a combined total down).
+  const ratedSets = game.trophySets.filter((s) => s.total > 0)
+  const progress = ratedSets.length ? Math.max(...ratedSets.map((s) => s.progress)) : null
   return (
     <div className="bc-tile bc-card" title={game.title} onClick={() => onOpen(game.key)}>
       {game.coverUrl ? (
@@ -46,21 +47,23 @@ export function GameCard({
       ) : (
         <div className="bc-cover bc-cover-empty">{game.title.slice(0, 1)}</div>
       )}
-      <div className="bc-title">{game.title}</div>
-      <div className="bc-meta">
-        <span className="bc-platforms">
-          {dedupePlatformLabels(game.platformLabels).map((p) => (
-            <PlatformBadge key={p} label={p} />
-          ))}
-        </span>
-        {progress != null ? <span className="bc-pct">{progress}%</span> : null}
-        {platinum ? <PlatinumTrophy className="bc-plat" /> : null}
-      </div>
-      {progress != null ? (
-        <div className="bc-bar">
-          <div className="bc-bar-fill" style={{ width: `${progress}%` }} />
+      <div className="bc-card-body">
+        <div className="bc-title">{game.title}</div>
+        <div className="bc-meta">
+          <span className="bc-platforms">
+            {dedupePlatformLabels(game.platformLabels).map((p) => (
+              <PlatformBadge key={p} label={p} />
+            ))}
+          </span>
+          {progress != null ? <span className="bc-pct">{progress}%</span> : null}
+          {platinum ? <PlatinumTrophy className="bc-plat" /> : null}
         </div>
-      ) : null}
+        {progress != null ? (
+          <div className="bc-bar">
+            <div className="bc-bar-fill" style={{ width: `${progress}%` }} />
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }

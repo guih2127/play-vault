@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   addManualGame,
   deleteManualGame,
+  fetchBacklog,
   fetchGames,
   searchGames,
   setBeaten,
@@ -13,14 +14,16 @@ import type { SearchResult } from './api'
 import type { AggregatedGame } from './types'
 import { GameCard, GameModal, pct } from './components/GameCard'
 import { PlatformBadge } from './components/PlatformTag'
+import { LoadingState } from './components/Spinner'
 
-type SortKey = 'trophies' | 'playtime' | 'recent' | 'title' | 'platinum'
+type SortKey = 'completed' | 'trophies' | 'playtime' | 'recent' | 'title' | 'platinum'
 type StatusFilter = 'all' | 'playing' | 'platinum' | 'beaten' | 'unbeaten' | 'manual'
 
 const CARD_MIN = 200
 const CARD_GAP = 16
 
 const SORT_OPTIONS: Array<[SortKey, string]> = [
+  ['completed', 'Recently completed'],
   ['trophies', '% trophies'],
   ['playtime', 'Most played'],
   ['recent', 'Recent'],
@@ -57,13 +60,14 @@ export function Library({
   readOnly?: boolean
 }) {
   const [games, setGames] = useState<AggregatedGame[]>([])
+  const [backlogCount, setBacklogCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [platform, setPlatform] = useState('all')
   const [status, setStatus] = useState<StatusFilter>(initialStatus)
-  const [sort, setSort] = useState<SortKey>('trophies')
+  const [sort, setSort] = useState<SortKey>('completed')
   const [rows, setRows] = useState(4)
   const [page, setPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -94,6 +98,9 @@ export function Library({
       .then(setGames)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false))
+    fetchBacklog(userId)
+      .then((b) => setBacklogCount(b.length))
+      .catch(() => setBacklogCount(0))
   }, [refreshKey, reload, userId])
 
   const handleToggleBeaten = useCallback(async (key: string, beaten: boolean) => {
@@ -149,6 +156,9 @@ export function Library({
     return [...set].sort()
   }, [games])
 
+  const beatenCount = useMemo(() => games.filter(isBeaten).length, [games])
+  const platinumCount = useMemo(() => games.filter(isPlatinum).length, [games])
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     const list = games.filter((g) => {
@@ -173,25 +183,31 @@ export function Library({
   const pageItems = filtered.slice((current - 1) * pageSize, current * pageSize)
   const selected = selectedKey ? (games.find((g) => g.key === selectedKey) ?? null) : null
 
-  if (loading) {
-    return (
-      <div className="library">
-        <div className="bc-grid">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="card skeleton">
-              <div className="skeleton-cover" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line short" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <LoadingState />
   if (error) return <div className="state state-error">{error}</div>
 
   return (
     <div className="library">
+      <div className="library-header">
+        <h1 className="library-title">Library</h1>
+        <div className="lib-stats">
+          <span className="lib-stat">
+            <b>{games.length}</b> games
+          </span>
+          <span className="lib-stat">
+            <span className="lib-dot lib-dot-green" />
+            <b>{beatenCount}</b> beaten
+          </span>
+          <span className="lib-stat">
+            <span className="lib-dot lib-dot-plat" />
+            <b>{platinumCount}</b> platinum
+          </span>
+          <span className="lib-stat">
+            <span className="lib-dot lib-dot-dim" />
+            <b>{backlogCount}</b> backlog
+          </span>
+        </div>
+      </div>
       <div className="controls">
         <input
           className="search"
@@ -470,6 +486,11 @@ function Select<T extends string>({
 
 function sorter(sort: SortKey): (a: AggregatedGame, b: AggregatedGame) => number {
   switch (sort) {
+    case 'completed':
+      // Trophy games sort by their last trophy; trophyless beaten games (Switch) by the
+      // date they were marked beaten, so they interleave instead of sinking to the bottom.
+      return (a, b) =>
+        (b.lastTrophyAt ?? b.beatenAt ?? '').localeCompare(a.lastTrophyAt ?? a.beatenAt ?? '')
     case 'playtime':
       return (a, b) => b.totalPlaytimeMinutes - a.totalPlaytimeMinutes
     case 'recent':

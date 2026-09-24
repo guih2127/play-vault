@@ -6,6 +6,7 @@ import {
   Outlet,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useOutletContext,
   useSearchParams,
@@ -67,6 +68,16 @@ interface AppContext {
 
 export function useAppContext(): AppContext {
   return useOutletContext<AppContext>()
+}
+
+/** Resets the window scroll to the top on every route change (e.g. clicking a widget's "See all"
+ *  from midway down the Overview shouldn't land the next page already scrolled down). */
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [pathname])
+  return null
 }
 
 function Layout({ user, onLogout }: { user: User; onLogout: () => void }) {
@@ -254,7 +265,7 @@ function Home() {
       meta={meta}
       onRefresh={load}
       onGoBacklog={() => navigate('/backlog')}
-      onGoLibrary={() => navigate('/library')}
+      onGoLibrary={() => navigate('/library?status=beaten')}
       onGoPlaying={() => navigate('/library?status=playing')}
       onGoTrophies={() => navigate('/trophies')}
     />
@@ -329,6 +340,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Routes>
         <Route element={<Layout user={user} onLogout={handleLogout} />}>
           <Route path="/" element={<Home />} />

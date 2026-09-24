@@ -28,7 +28,11 @@ export interface AggregatedGame {
   trophySets: TrophySet[];
   platinum: { earned: number; total: number };
   platinumEarnedAt?: string;
+  /** When the most recent trophy/achievement for this game was earned (any grade, any provider). */
+  lastTrophyAt?: string;
   beaten?: boolean;
+  /** When "beaten" was marked (game_flags date). The completion date for trophyless games (Switch). */
+  beatenAt?: string;
   playing?: boolean;
   manual?: boolean;
   rating?: number;
