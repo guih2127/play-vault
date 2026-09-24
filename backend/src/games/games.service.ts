@@ -8,7 +8,7 @@ import type {
   TrophyProfile,
 } from '../domain/game.model.js';
 import { DatabaseService, type StoredSnapshot } from '../db/database.service.js';
-import type { AggregatedGame } from './aggregation.js';
+import type { AggregatedGame, TrophySet } from './aggregation.js';
 import { mergeKey } from './aggregation.js';
 import type { SnapshotPayload } from './snapshot.js';
 
@@ -63,6 +63,25 @@ function isSteamTrophySet(platformLabel: string): boolean {
 function providerOfTrophySet(platformLabel: string): 'psn' | 'steam' {
   if (isSteamTrophySet(platformLabel)) return 'steam';
   return 'psn';
+}
+
+/**
+ * The last trophy date of a game's most-complete version (highest-progress trophy set). A stray
+ * recent trophy on a less-complete platform — e.g. a single Steam achievement for a game you
+ * platinumed on PS5 long ago — shouldn't make the game look freshly finished in "recent" ordering.
+ */
+function bestVersionLastEarnedAt(sets: TrophySet[]): string | undefined {
+  let best: TrophySet | undefined;
+  for (const s of sets) {
+    if (s.total <= 0) continue;
+    if (
+      !best ||
+      s.progress > best.progress ||
+      (s.progress === best.progress && s.earned > best.earned)
+    )
+      best = s;
+  }
+  return best?.lastEarnedAt;
 }
 
 function emptyProviderTrophies() {
@@ -153,7 +172,7 @@ export class GamesService {
   ): Promise<AggregatedGame[]> {
     const snap = preSnap !== undefined ? preSnap : await this.latest(userId);
     const storedTrophies = preTrophies ?? (await this.db.getAllStoredTrophies<RecentTrophy>(userId));
-    const beatenKeys = await this.db.getBeatenKeys(userId);
+    const beatenDates = await this.db.getBeatenDates(userId);
     const playingKeys = await this.db.getPlayingKeys(userId);
     const ratings = await this.db.getRatings(userId);
     const synced = (snap?.data.games ?? []).filter((g) => g.trophySets.length > 0);
@@ -183,7 +202,9 @@ export class GamesService {
       ...g,
       title: cleanTitle(g.title),
       platinumEarnedAt: platDateByKey.get(g.key),
-      beaten: g.manual ? beatenKeys.has(g.key) || g.beaten : beatenKeys.has(g.key),
+      lastTrophyAt: bestVersionLastEarnedAt(g.trophySets),
+      beaten: g.manual ? beatenDates.has(g.key) || g.beaten : beatenDates.has(g.key),
+      beatenAt: beatenDates.get(g.key),
       playing: playingKeys.has(g.key),
       rating: ratings.get(g.key) ?? ratingByGameKey.get(g.key),
     }));
@@ -425,11 +446,12 @@ export class GamesService {
       .filter((g) => g.playing)
       .sort((a, b) => (b.lastPlayed ?? '').localeCompare(a.lastPlayed ?? ''));
 
-    const beatenDates = await this.db.getBeatenDates(userId);
-    const beatenAt = (g: AggregatedGame) => beatenDates.get(g.key) ?? g.lastPlayed ?? '';
+    // Order by the real date of the most recently earned trophy; games without trophies
+    // (e.g. manually-marked beaten Switch games) fall back to the beaten-mark date, then last played.
+    const completedAt = (g: AggregatedGame) => g.lastTrophyAt ?? g.beatenAt ?? g.lastPlayed ?? '';
     const beatenGames = games
       .filter((g) => isBeaten(g))
-      .sort((a, b) => beatenAt(b).localeCompare(beatenAt(a)));
+      .sort((a, b) => completedAt(b).localeCompare(completedAt(a)));
     const completedCount = games.filter((g) => isCompleted(g)).length;
 
     const trophiesByProvider = {

@@ -1754,6 +1754,7 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+  transition: transform 0.15s ease;
 }
 
 .bc-cover {
@@ -1764,14 +1765,12 @@
   border-radius: 10px;
   background: var(--bg-2);
   border: 1px solid var(--border-soft);
-  transition:
-    transform 0.15s ease,
-    border-color 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
-.bc-tile:hover .bc-cover {
+/* Lift the whole tile on hover (not just the cover). */
+.bc-tile:hover {
   transform: translateY(-2px);
-  border-color: var(--accent);
 }
 
 .bc-cover-empty {
@@ -1781,6 +1780,67 @@
   font-size: 30px;
   font-weight: 800;
   color: var(--text-mut);
+}
+
+/* Library variant: GameCard wraps the tile in a real card (border, surface, padding) so the
+   full-page grid reads as cards, not bare covers. The home widget keeps the borderless .bc-tile. */
+.bc-card {
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.bc-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  border-color: var(--accent);
+}
+
+/* Cover sits flush at the top of the card; the whole card does the hover lift, not the cover. */
+.bc-card .bc-cover {
+  border: none;
+  border-radius: 0;
+}
+
+.bc-card-body {
+  padding: 10px 12px 12px;
+}
+
+.bc-card-body .bc-title {
+  margin-top: 0;
+}
+
+/* Home widget: same GameCard blocks but flush — no surface panel/border in the normal state and
+   the cover keeps its rounding, so it reads clean. The pink border, shadow and lift still appear
+   on hover. Inner padding keeps that hover border off the cover and text; the grid gap is trimmed
+   to compensate so the covers themselves aren't pushed far apart (keep GRID_GAP in Overview.tsx in
+   sync with this gap). */
+.bc-grid-flush {
+  gap: 4px;
+}
+
+.bc-grid-flush .bc-card {
+  background: none;
+  border-color: transparent;
+  overflow: visible;
+  padding: 6px;
+}
+
+.bc-grid-flush .bc-card:hover {
+  border-color: var(--accent);
+}
+
+.bc-grid-flush .bc-card .bc-cover {
+  border-radius: 10px;
+}
+
+.bc-grid-flush .bc-card-body {
+  padding: 9px 0 0;
 }
 
 .bc-title {
@@ -1833,7 +1893,7 @@
 .bc-bar-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #6f5bd6, #9d8bf0);
+  background: var(--accent);
 }
 
 /* ---------- trophies page ---------- */
@@ -2167,6 +2227,63 @@
 }
 
 /* ---------- controls ---------- */
+
+.library-header {
+  margin-bottom: 20px;
+}
+
+.library-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+/* Soft single-line stats: dim text, small colored dots, middot separators. */
+.lib-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.lib-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lib-stat:not(:first-child)::before {
+  content: '·';
+  margin-right: 4px;
+  color: var(--text-mut);
+}
+
+.lib-stat b {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lib-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.lib-dot-green {
+  background: var(--green);
+}
+
+.lib-dot-plat {
+  background: var(--plat);
+}
+
+.lib-dot-dim {
+  background: var(--text-mut);
+}
 
 .controls {
   display: flex;

@@ -11,6 +11,7 @@ import type { SearchResult } from './api'
 import type { BacklogItem } from './types'
 import { formatDate } from './format'
 import { PlatformBadge } from './components/PlatformTag'
+import { LoadingState } from './components/Spinner'
 
 type SortKey = 'priority' | 'recent' | 'title'
 type PriorityFilter = 'all' | '2' | '1' | '0'
@@ -129,21 +130,7 @@ export function Backlog({
 
   const selected = selectedId != null ? (items.find((it) => it.id === selectedId) ?? null) : null
 
-  if (loading) {
-    return (
-      <div className="library">
-        <div className="grid">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="card skeleton">
-              <div className="skeleton-cover" />
-              <div className="skeleton-line" />
-              <div className="skeleton-line short" />
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
+  if (loading) return <LoadingState />
   if (error) return <div className="state state-error">{error}</div>
 
   return (

@@ -16,10 +16,9 @@ export function Spinner({ size = 30 }: { size?: number }) {
 
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
-    <div className="state" role="status" aria-live="polite">
+    <div className="state" role="status" aria-live="polite" aria-label={label}>
       <div className="loading-box">
         <Spinner />
-        {label ? <span>{label}</span> : null}
       </div>
     </div>
   )

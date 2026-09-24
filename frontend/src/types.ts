@@ -53,7 +53,9 @@ export interface AggregatedGame {
   trophySets: TrophySet[]
   platinum: { earned: number; total: number }
   platinumEarnedAt?: string
+  lastTrophyAt?: string
   beaten?: boolean
+  beatenAt?: string
   playing?: boolean
   manual?: boolean
   rating?: number
