@@ -98,6 +98,23 @@ export function IconLogout(props: { size?: number }) {
   )
 }
 
+export function IconClock(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </Svg>
+  )
+}
+
+export function IconChevronRight(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <polyline points="9 18 15 12 9 6" />
+    </Svg>
+  )
+}
+
 // Brand logos are solid glyphs (single filled path, currentColor) — a separate wrapper from the
 // stroke-based UI icons above. Paths are the official marks from Simple Icons.
 function BrandSvg({ size = 14, children }: { size?: number; children: ReactNode }) {

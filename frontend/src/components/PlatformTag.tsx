@@ -1,5 +1,30 @@
 import { badgeClass, providerLabel } from '../format'
-import { platformBrand, platformIcon } from '../icons'
+import { platformBrand, platformIcon, type PlatformBrand } from '../icons'
+
+const BRAND_LABEL: Record<PlatformBrand, string> = {
+  psn: 'PlayStation',
+  steam: 'Steam',
+  switch: 'Nintendo Switch',
+  xbox: 'Xbox',
+}
+
+/**
+ * Collapse platform labels to one per brand — a game on both PS4 and PS5 shows a single, generic
+ * PlayStation icon instead of two. Brand labels become the generic brand name; non-brand labels
+ * (e.g. "PC") are kept as-is, de-duplicated.
+ */
+export function dedupePlatformLabels(labels: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const label of labels) {
+    const brand = platformBrand(label)
+    const key = brand ?? `text:${label.toLowerCase()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(brand ? BRAND_LABEL[brand] : label)
+  }
+  return out
+}
 
 /**
  * A platform pill. Shows the brand logo (PlayStation, Steam, Switch, Xbox) on a per-brand colored

@@ -17,7 +17,7 @@ import { PlatformBadge } from './components/PlatformTag'
 type SortKey = 'trophies' | 'playtime' | 'recent' | 'title' | 'platinum'
 type StatusFilter = 'all' | 'playing' | 'platinum' | 'beaten' | 'unbeaten' | 'manual'
 
-const CARD_MIN = 158
+const CARD_MIN = 200
 const CARD_GAP = 16
 
 const SORT_OPTIONS: Array<[SortKey, string]> = [
@@ -64,7 +64,7 @@ export function Library({
   const [platform, setPlatform] = useState('all')
   const [status, setStatus] = useState<StatusFilter>(initialStatus)
   const [sort, setSort] = useState<SortKey>('trophies')
-  const [rows, setRows] = useState(3)
+  const [rows, setRows] = useState(4)
   const [page, setPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -176,7 +176,7 @@ export function Library({
   if (loading) {
     return (
       <div className="library">
-        <div className="grid">
+        <div className="bc-grid">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="card skeleton">
               <div className="skeleton-cover" />
@@ -220,7 +220,7 @@ export function Library({
       <div className="library-meta">{filtered.length} games</div>
 
       {pageItems.length ? (
-        <div className="grid" ref={gridRef}>
+        <div className="bc-grid" ref={gridRef}>
           {pageItems.map((g) => (
             <GameCard key={g.key} game={g} onOpen={setSelectedKey} />
           ))}
@@ -252,7 +252,7 @@ export function Library({
           value={rows}
           onChange={(e) => setRows(Number(e.target.value))}
         >
-          {[3, 4, 5, 6, 8].map((n) => (
+          {[4, 6, 8].map((n) => (
             <option key={n} value={n}>
               {n} rows
             </option>
