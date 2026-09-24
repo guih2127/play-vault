@@ -2061,6 +2061,18 @@
   color: #fff;
 }
 
+/* Icon-only variant: brand logo instead of the provider name. */
+.src-tag-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 7px;
+}
+
+.src-tag-icon svg {
+  display: block;
+}
+
 .src-psn {
   background: #0a6cd6;
 }
@@ -2247,6 +2259,42 @@
   padding: 3px 7px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+}
+
+/* Icon-only variant: brand logo instead of text, snug square-ish pill. */
+.badge-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+}
+
+.badge-icon svg {
+  display: block;
+}
+
+/* Per-brand chip colors, shared by icon badges and trophy source tags. The logo is the pill's
+   `color` (currentColor). PlayStation is uniformly blue everywhere; the others keep a white logo
+   on their brand color. */
+.brand-psn {
+  background: #0a6cd6;
+  color: #fff;
+}
+
+.brand-steam {
+  background: #1b2838;
+  color: #fff;
+  border: 1px solid #3a4a5a;
+}
+
+.brand-switch {
+  background: #e60012;
+  color: #fff;
+}
+
+.brand-xbox {
+  background: #107c10;
   color: #fff;
 }
 
