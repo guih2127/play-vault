@@ -93,6 +93,7 @@ export interface RecentCompletion {
   name?: string
   coverUrl?: string
   platinumIconUrl?: string
+  platform?: string
   earnedAt?: string
   rarity?: number
 }

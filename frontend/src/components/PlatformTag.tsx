@@ -49,10 +49,19 @@ export function PlatformBadge({ label }: { label: string }) {
   )
 }
 
-/** The provider tag on trophy/platinum rows — same brand chips as PlatformBadge, `src-tag` sizing. */
-export function SourceTag({ provider }: { provider: 'psn' | 'steam' | 'xbox' }) {
-  const label = providerLabel(provider)
-  const brand = platformBrand(provider)
+/** The provider tag on trophy/platinum rows — same brand chips as PlatformBadge, `src-tag` sizing.
+ *  Pass `platform` (e.g. "PS5"/"PS4") to distinguish generations; otherwise it falls back to the
+ *  generic provider (PlayStation = blue). */
+export function SourceTag({
+  provider,
+  platform,
+}: {
+  provider: 'psn' | 'steam' | 'xbox'
+  platform?: string
+}) {
+  const key = platform || provider
+  const label = platform || providerLabel(provider)
+  const brand = platformBrand(key)
   if (!brand) {
     return (
       <span className={`src-tag src-${provider}`} title={label}>
@@ -62,7 +71,7 @@ export function SourceTag({ provider }: { provider: 'psn' | 'steam' | 'xbox' }) 
   }
   return (
     <span className={`src-tag src-tag-icon brand-${brand}`} title={label}>
-      {platformIcon(provider)}
+      {platformIcon(key)}
     </span>
   )
 }

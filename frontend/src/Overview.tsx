@@ -25,7 +25,7 @@ const GRID_ROWS = 2
 const HOME_LIMIT = 3
 import { formatDate, formatNumber } from './format'
 import { PlatformBadge, SourceTag } from './components/PlatformTag'
-import { IconClock, IconChevronRight } from './icons'
+import { IconClock, IconChevronRight, IconTrophy } from './icons'
 
 interface PlatItem {
   key: string
@@ -34,6 +34,7 @@ interface PlatItem {
   coverUrl?: string
   earnedAt?: string
   platinumIconUrl?: string
+  platform?: string
   rarity?: number
   provider: 'psn' | 'steam'
 }
@@ -313,7 +314,9 @@ function TrophiesWidget({
   return (
     <div className="widget widget-trophies">
       <div className="widget-head">
-        <span className="widget-title">Trophies earned</span>
+        <span className="widget-title widget-title-icon">
+          <IconTrophy size={15} /> Trophies earned
+        </span>
         <div className="widget-head-right">
           <div className="seg">
             <button
@@ -430,7 +433,7 @@ function PlatinumMiniRow({ p, onOpen }: { p: PlatItem; onOpen?: () => void }) {
           {p.earnedAt ? ` · ${formatDate(p.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <SourceTag provider={p.provider} />
+          <SourceTag provider={p.provider} platform={p.platform} />
           {p.rarity != null ? <span className="tro-rarity">{p.rarity}%</span> : null}
         </span>
       </div>
@@ -476,7 +479,7 @@ function TrophyMiniRow({ tr, onOpen }: { tr: RecentTrophy; onOpen: () => void })
           {tr.earnedAt ? ` · ${formatDate(tr.earnedAt)}` : ''}
         </span>
         <span className="tro-mini-meta">
-          <SourceTag provider={tr.provider} />
+          <SourceTag provider={tr.provider} platform={tr.platform} />
           {tr.rarity != null ? <span className="tro-rarity">{tr.rarity}%</span> : null}
         </span>
       </div>

@@ -84,7 +84,7 @@ export function TrophyModal({ trophy, onClose }: { trophy: RecentTrophy; onClose
             <div className="trophy-modal-game-info">
               <span className="trophy-modal-game-title">{trophy.gameTitle}</span>
               <span className="trophy-modal-game-sub">
-                <SourceTag provider={trophy.provider} />
+                <SourceTag provider={trophy.provider} platform={trophy.platform} />
                 {trophy.earnedAt ? <span>Earned {formatDate(trophy.earnedAt)}</span> : null}
               </span>
             </div>
