@@ -115,6 +115,43 @@ export function IconChevronRight(props: { size?: number }) {
   )
 }
 
+export function IconInfo(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </Svg>
+  )
+}
+
+export function IconChart(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <line x1="6" y1="20" x2="6" y2="13" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="18" y1="20" x2="18" y2="9" />
+    </Svg>
+  )
+}
+
+export function IconStar(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </Svg>
+  )
+}
+
+export function IconCheckCircle(props: { size?: number }) {
+  return (
+    <Svg {...props}>
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </Svg>
+  )
+}
+
 // Brand logos are solid glyphs (single filled path, currentColor) — a separate wrapper from the
 // stroke-based UI icons above. Paths are the official marks from Simple Icons.
 function BrandSvg({ size = 14, children }: { size?: number; children: ReactNode }) {
@@ -157,7 +194,15 @@ export function IconXbox(props: { size?: number }) {
   )
 }
 
-export type PlatformBrand = 'psn' | 'steam' | 'switch' | 'xbox'
+export function IconPC(props: { size?: number }) {
+  return (
+    <BrandSvg {...props}>
+      <path d="M3 3h18a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-6.5l.5 2h2a1 1 0 0 1 0 2H7a1 1 0 0 1 0-2h2l.5-2H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm1 2v9h16V5H4z" />
+    </BrandSvg>
+  )
+}
+
+export type PlatformBrand = 'psn' | 'ps5' | 'steam' | 'switch' | 'xbox' | 'pc'
 
 /**
  * The brand a platform label ("PS5", "Switch 2", "Steam"…) or provider ("psn", "steam"…) belongs
@@ -166,10 +211,12 @@ export type PlatformBrand = 'psn' | 'steam' | 'switch' | 'xbox'
  */
 export function platformBrand(key: string): PlatformBrand | null {
   const k = key.toLowerCase()
+  if (/ps ?5|playstation ?5/.test(k)) return 'ps5'
   if (k.startsWith('ps') || k.includes('playstation') || k.includes('vita')) return 'psn'
   if (k.includes('switch') || k.includes('nintendo')) return 'switch'
   if (k.includes('steam')) return 'steam'
   if (k.includes('xbox')) return 'xbox'
+  if (k === 'pc' || k.includes('windows') || k.includes('linux') || k.includes('mac')) return 'pc'
   return null
 }
 
@@ -177,6 +224,7 @@ export function platformBrand(key: string): PlatformBrand | null {
 export function platformIcon(key: string, size = 14): ReactNode | null {
   switch (platformBrand(key)) {
     case 'psn':
+    case 'ps5':
       return <IconPlayStation size={size} />
     case 'switch':
       return <IconSwitch size={size} />
@@ -184,6 +232,8 @@ export function platformIcon(key: string, size = 14): ReactNode | null {
       return <IconSteam size={size} />
     case 'xbox':
       return <IconXbox size={size} />
+    case 'pc':
+      return <IconPC size={size} />
     default:
       return null
   }

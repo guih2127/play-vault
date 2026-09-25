@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   addManualGame,
   deleteManualGame,
@@ -72,6 +73,7 @@ export function Library({
   const [page, setPage] = useState(1)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const navigate = useNavigate()
   const [reload, setReload] = useState(0)
 
   const gridRef = useRef<HTMLDivElement>(null)
@@ -238,7 +240,13 @@ export function Library({
       {pageItems.length ? (
         <div className="bc-grid" ref={gridRef}>
           {pageItems.map((g) => (
-            <GameCard key={g.key} game={g} onOpen={setSelectedKey} />
+            <GameCard
+              key={g.key}
+              game={g}
+              onOpen={(key) =>
+                readOnly ? setSelectedKey(key) : navigate(`/game/${encodeURIComponent(key)}`)
+              }
+            />
           ))}
         </div>
       ) : (

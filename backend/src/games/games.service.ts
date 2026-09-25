@@ -383,6 +383,19 @@ export class GamesService {
       .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''));
   }
 
+  /** Every stored trophy for a single aggregated game (by key) — earned and unearned (the latter
+   *  have no `earnedAt`). Earned first, most recent first; the client re-sorts by grade/rarity. */
+  async getGameTrophies(userId: number, key: string): Promise<RecentTrophy[]> {
+    const storedTrophies = await this.db.getAllStoredTrophies<RecentTrophy>(userId);
+    const { resolveTitle } = this.titleResolver(
+      await this.getGames(userId, undefined, storedTrophies),
+    );
+    return storedTrophies
+      .map((t) => ({ ...t, provider: t.provider ?? 'psn', gameTitle: resolveTitle(t.gameTitle) }))
+      .filter((t) => mergeKey(t.gameTitle) === key)
+      .sort((a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''));
+  }
+
   /**
    * Build resolvers that map a stored trophy's (possibly localized) game title to the
    * aggregated game's canonical key/title. Store titles can be in a different language

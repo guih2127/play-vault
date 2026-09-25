@@ -99,12 +99,14 @@ export interface RecentCompletion {
 
 export interface RecentTrophy {
   provider: 'psn' | 'steam'
+  platform?: string
   gameTitle: string
   gameIconUrl?: string
   name: string
   detail?: string
   iconUrl?: string
   type?: 'bronze' | 'silver' | 'gold' | 'platinum'
+  group?: string
   earnedAt?: string
   rarity?: number
 }

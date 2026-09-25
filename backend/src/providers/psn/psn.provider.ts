@@ -338,18 +338,22 @@ export class PsnProvider implements GameProvider {
       const defById = new Map<number, any>();
       for (const d of defs?.trophies ?? []) defById.set(d.trophyId, d);
       const out: RecentTrophy[] = [];
+      // Store every trophy (earned + unearned) so the details screen can show what's still locked.
+      // The trophy definition includes the real name/detail even for "hidden" trophies, so we keep
+      // them; unearned ones simply have no `earnedAt`.
       for (const e of earned?.trophies ?? []) {
-        if (!e.earned) continue;
         const d = defById.get(e.trophyId);
         out.push({
           provider: 'psn',
+          platform: title.platformLabel || 'PlayStation',
           gameTitle: cleanTrophyTitle(title.name),
           gameIconUrl: title.iconUrl,
           name: d?.trophyName ?? '',
           detail: d?.trophyDetail,
           iconUrl: d?.trophyIconUrl,
           type: (e.trophyType ?? d?.trophyType ?? 'bronze') as RecentTrophy['type'],
-          earnedAt: e.earnedDateTime,
+          group: d?.trophyGroupId,
+          earnedAt: e.earned ? e.earnedDateTime : undefined,
           rarity: e.trophyEarnedRate != null ? Number(e.trophyEarnedRate) : undefined,
         });
       }

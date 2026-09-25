@@ -3,9 +3,11 @@ import { platformBrand, platformIcon, type PlatformBrand } from '../icons'
 
 const BRAND_LABEL: Record<PlatformBrand, string> = {
   psn: 'PlayStation',
+  ps5: 'PS5',
   steam: 'Steam',
   switch: 'Nintendo Switch',
   xbox: 'Xbox',
+  pc: 'PC',
 }
 
 /**
