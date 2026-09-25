@@ -1451,6 +1451,14 @@
   text-transform: uppercase;
   color: #fff;
 }
+.widget-title-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.widget-title-icon svg {
+  color: var(--accent-2);
+}
 
 .widget-count {
   font-size: 12px;

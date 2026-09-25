@@ -233,7 +233,7 @@ export function TrophiesPage({
                       </div>
                     </div>
                     <div className="tro-meta">
-                      <SourceTag provider={c.provider} />
+                      <SourceTag provider={c.provider} platform={c.platform} />
                       {c.rarity != null ? <span className="tro-rarity">{c.rarity}%</span> : null}
                     </div>
                   </>
@@ -444,7 +444,7 @@ function TrophyRow({ t, onOpen }: { t: RecentTrophy; onOpen: () => void }) {
         </div>
       </div>
       <div className="tro-meta">
-        <SourceTag provider={t.provider} />
+        <SourceTag provider={t.provider} platform={t.platform} />
         {t.rarity != null ? <span className="tro-rarity">{t.rarity}%</span> : null}
       </div>
     </button>

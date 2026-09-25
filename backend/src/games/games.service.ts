@@ -522,6 +522,7 @@ export class GamesService {
         name: t.name,
         coverUrl: t.gameIconUrl,
         platinumIconUrl: t.iconUrl,
+        platform: t.platform,
         earnedAt: t.earnedAt,
         rarity: t.rarity,
       }));
@@ -533,14 +534,16 @@ export class GamesService {
         title: g.title,
         coverUrl: g.coverUrl,
         platinumIconUrl: g.trophySets.find((s) => s.platinumIconUrl)?.platinumIconUrl,
+        platform: g.trophySets.find((s) => s.platinumEarned > 0)?.platformLabel,
         when: g.trophySets.find((s) => s.platinumEarned > 0)?.lastEarnedAt ?? g.lastPlayed,
       }))
       .sort((a, b) => (b.when ?? '').localeCompare(a.when ?? ''))
-      .map(({ key, title, coverUrl, platinumIconUrl, when }) => ({
+      .map(({ key, title, coverUrl, platinumIconUrl, platform, when }) => ({
         key,
         title,
         coverUrl,
         platinumIconUrl,
+        platform,
         earnedAt: when,
       }));
 
@@ -579,6 +582,7 @@ export class GamesService {
             name: last?.name,
             coverUrl,
             platinumIconUrl: last?.iconUrl,
+            platform: last?.platform,
             earnedAt: when,
             rarity: last?.rarity,
           };
