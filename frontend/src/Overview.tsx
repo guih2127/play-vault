@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type {
   AggregatedGame,
   BacklogItem,
@@ -6,19 +7,14 @@ import type {
   ProviderTrophies,
   RecentTrophy,
 } from './types'
-import { GameCard, GameModal } from './components/GameCard'
+import { GameCard } from './components/GameCard'
 import { TrophyModal } from './components/TrophyModal'
 import { BacklogModal } from './Backlog'
 import {
   deleteBacklogGame,
-  deleteManualGame,
   fetchGames,
   setBacklogPriority,
-  setBeaten,
-  setPlaying,
-  setRating,
   startBacklogGame,
-  updateManualHours,
 } from './api'
 
 // GRID_GAP must match the widget grid `gap` in CSS so the JS column count equals what actually
@@ -70,7 +66,7 @@ export function Overview({
   const heroImage =
     meta.playingGames[0]?.coverUrl ?? meta.mostPlayed[0]?.coverUrl ?? meta.beatenGames[0]?.coverUrl
 
-  const [selGame, setSelGame] = useState<AggregatedGame | null>(null)
+  const navigate = useNavigate()
   const [selBacklog, setSelBacklog] = useState<BacklogItem | null>(null)
   const [selTrophy, setSelTrophy] = useState<RecentTrophy | null>(null)
   const [gamesByKey, setGamesByKey] = useState<Record<string, AggregatedGame>>({})
@@ -81,37 +77,8 @@ export function Overview({
       .catch(() => {})
   }, [meta, userId])
 
-  const openByKey = (key: string) => {
-    const g = gamesByKey[key]
-    if (g) setSelGame(g)
-  }
-
-  const gToggleBeaten = async (key: string, beaten: boolean) => {
-    await setBeaten(key, beaten)
-    setSelGame((s) => (s ? { ...s, beaten } : s))
-    void onRefresh()
-  }
-  const gTogglePlaying = async (key: string, playing: boolean) => {
-    await setPlaying(key, playing)
-    setSelGame((s) => (s ? { ...s, playing } : s))
-    void onRefresh()
-  }
-  const gRate = async (key: string, rating: number) => {
-    setSelGame((s) => (s ? { ...s, rating } : s))
-    await setRating(key, rating)
-    void onRefresh()
-  }
-  const gDelete = async (key: string) => {
-    await deleteManualGame(key)
-    setSelGame(null)
-    void onRefresh()
-  }
-  const gUpdateHours = async (key: string, hours: number) => {
-    await updateManualHours(key, hours)
-    const minutes = hours > 0 ? Math.round(hours * 60) : 0
-    setSelGame((s) => (s ? { ...s, totalPlaytimeMinutes: minutes, playtimeKnown: hours > 0 } : s))
-    void onRefresh()
-  }
+  const openGame = (g: AggregatedGame) => navigate(`/game/${encodeURIComponent(g.key)}`)
+  const openByKey = (key: string) => navigate(`/game/${encodeURIComponent(key)}`)
 
   const bPriority = async (id: number, priority: number) => {
     setSelBacklog((s) => (s ? { ...s, priority } : s))
@@ -155,7 +122,7 @@ export function Overview({
           games={meta.playingGames}
           onGoPlaying={onGoPlaying}
           onGoBacklog={onGoBacklog}
-          onOpenGame={setSelGame}
+          onOpenGame={openGame}
         />
         <NextUpWidget
           items={meta.backlogPreview}
@@ -175,20 +142,7 @@ export function Overview({
         onGoTrophies={onGoTrophies}
       />
 
-      <BeatenWidget games={meta.beatenGames} onOpenGame={setSelGame} onGoLibrary={onGoLibrary} />
-
-      {selGame ? (
-        <GameModal
-          game={selGame}
-          onClose={() => setSelGame(null)}
-          onToggleBeaten={gToggleBeaten}
-          onTogglePlaying={gTogglePlaying}
-          onRate={gRate}
-          onDelete={gDelete}
-          onUpdateHours={gUpdateHours}
-          readOnly={readOnly}
-        />
-      ) : null}
+      <BeatenWidget games={meta.beatenGames} onOpenGame={openGame} onGoLibrary={onGoLibrary} />
 
       {selBacklog ? (
         <BacklogModal

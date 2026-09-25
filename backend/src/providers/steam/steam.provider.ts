@@ -213,19 +213,20 @@ export class SteamProvider implements GameProvider {
       const cover = `https://cdn.cloudflare.steamstatic.com/steam/apps/${g.appid}/header.jpg`;
 
       const out: RecentTrophy[] = [];
+      // Store every achievement (earned + unearned); unearned ones get the grey icon and no date.
       for (const pa of playerAch) {
-        if (!pa.achieved) continue;
         const def = defByName.get(pa.apiname);
         const pct = pctByName.get(pa.apiname);
         out.push({
           provider: 'steam',
+          platform: 'Steam',
           gameTitle: g.name,
           gameIconUrl: cover,
           name: def?.displayName ?? pa.apiname,
           detail: def?.description,
-          iconUrl: def?.icon,
+          iconUrl: pa.achieved ? def?.icon : (def?.icongray ?? def?.icon),
           earnedAt:
-            pa.unlocktime && pa.unlocktime > 0
+            pa.achieved && pa.unlocktime > 0
               ? new Date(pa.unlocktime * 1000).toISOString()
               : undefined,
           rarity: pct != null ? Math.round(pct * 10) / 10 : undefined,

@@ -8,12 +8,14 @@ import {
   Routes,
   useLocation,
   useNavigate,
+  useParams,
   useOutletContext,
   useSearchParams,
 } from 'react-router-dom'
 import './App.css'
-import { fetchDashboard, getMe, logout, syncNow } from './api'
-import type { Dashboard, User } from './types'
+import { fetchDashboard, fetchGames, getMe, logout, syncNow } from './api'
+import type { AggregatedGame, Dashboard, User } from './types'
+import { GameDetails } from './GameDetails'
 import { formatDateTime } from './format'
 import { Login } from './Login'
 import { Profile } from './Profile'
@@ -284,6 +286,21 @@ function LibraryPage() {
   )
 }
 
+function GameDetailsPage() {
+  const { key } = useParams()
+  const navigate = useNavigate()
+  const { refreshKey } = useAppContext()
+  const [game, setGame] = useState<AggregatedGame | null | undefined>(undefined)
+  useEffect(() => {
+    fetchGames()
+      .then((gs) => setGame(gs.find((g) => g.key === key) ?? null))
+      .catch(() => setGame(null))
+  }, [key, refreshKey])
+  if (game === undefined) return <LoadingState />
+  if (!game) return <div className="state">Game not found.</div>
+  return <GameDetails game={game} onBack={() => navigate('/library')} />
+}
+
 function BacklogPage() {
   const { refreshKey } = useAppContext()
   return <Backlog refreshKey={refreshKey} />
@@ -345,6 +362,7 @@ function App() {
         <Route element={<Layout user={user} onLogout={handleLogout} />}>
           <Route path="/" element={<Home />} />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/game/:key" element={<GameDetailsPage />} />
           <Route path="/backlog" element={<BacklogPage />} />
           <Route path="/trophies" element={<TrophiesRoute />} />
           <Route path="/profile" element={<ProfileRoute />} />

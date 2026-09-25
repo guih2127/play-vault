@@ -70,6 +70,11 @@ export class GamesController {
     return this.games.getAllTrophies(req.user.id);
   }
 
+  @Get('game-trophies')
+  getGameTrophies(@Req() req: AuthedRequest, @Query('key') key: string) {
+    return this.games.getGameTrophies(req.user.id, key ?? '');
+  }
+
   @Post('sync')
   async runSync(@Req() req: AuthedRequest) {
     const result = await this.sync.sync(req.user.id);

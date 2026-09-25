@@ -66,6 +66,9 @@ export interface TrophyProfile {
 
 export interface RecentTrophy {
   provider: 'psn' | 'steam';
+  /** The specific platform/version this trophy set belongs to (e.g. "PS5", "PS4", "Steam"), so a
+   *  game owned on several platforms can be filtered to one list instead of merging them. */
+  platform?: string;
   gameTitle: string;
   gameIconUrl?: string;
   name: string;
@@ -73,6 +76,8 @@ export interface RecentTrophy {
   iconUrl?: string;
   /** PSN trophy grade. Undefined for Steam achievements (which have no grade). */
   type?: 'bronze' | 'silver' | 'gold' | 'platinum';
+  /** PSN trophy group id ("default" = base game, others = DLC). Maps to DlcGroup.id. */
+  group?: string;
   earnedAt?: string;
   /** Percentage of players who earned this trophy/achievement (lower = rarer). */
   rarity?: number;

@@ -296,6 +296,11 @@ export interface GameMeta {
   genres: string[]
   released?: string
   metacritic?: number
+  userScore?: number
+  ratingsCount?: number
+  modes?: string
+  platforms: string[]
+  similar: { name: string; image?: string }[]
   description?: string
   rawgUrl?: string
 }
@@ -305,5 +310,11 @@ export async function fetchMeta(key: string, title: string): Promise<GameMeta> {
     `/api/meta?key=${encodeURIComponent(key)}&title=${encodeURIComponent(title)}`,
   )
   if (!res.ok) throw new Error(`Failed to load info (${res.status})`)
+  return res.json()
+}
+
+export async function fetchGameTrophies(key: string): Promise<RecentTrophy[]> {
+  const res = await fetch(`/api/game-trophies?key=${encodeURIComponent(key)}`)
+  if (!res.ok) throw new Error(`Failed to load trophies (${res.status})`)
   return res.json()
 }
