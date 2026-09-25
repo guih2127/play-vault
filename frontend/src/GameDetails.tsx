@@ -11,7 +11,7 @@ import {
 } from './api'
 import { formatDate, formatHours } from './format'
 import { PlatformBadge, dedupePlatformLabels } from './components/PlatformTag'
-import { GameModal } from './components/GameCard'
+import { GameModal, StarRating } from './components/GameCard'
 import { LoadingState, Spinner } from './components/Spinner'
 import {
   IconChart,
@@ -26,7 +26,25 @@ import {
 } from './icons'
 
 type TType = 'bronze' | 'silver' | 'gold' | 'platinum'
+type SortKey = 'grade' | 'rarity' | 'earned' | 'name'
+const SORT_LABELS: Record<SortKey, string> = {
+  grade: 'Grade',
+  rarity: 'Rarity',
+  earned: 'Date',
+  name: 'Name',
+}
 const platOf = (t: RecentTrophy) => t.platform ?? (t.provider === 'steam' ? 'Steam' : 'PlayStation')
+
+/** PSN-style rarity tier from an obtain-rate percentage. */
+function rarityLabel(r?: number): string | null {
+  if (r == null) return null
+  if (r < 5) return 'Ultra Rare'
+  if (r < 10) return 'Very Rare'
+  if (r < 20) return 'Rare'
+  if (r < 50) return 'Uncommon'
+  return 'Common'
+}
+
 
 const TYPE_ORDER: TType[] = ['platinum', 'gold', 'silver', 'bronze']
 const TYPE_GRAD: Record<TType, [string, string, string]> = {
@@ -75,6 +93,28 @@ function TrophyIcon({ type, size = 20 }: { type: TType; size?: number }) {
   )
 }
 
+/** Repeat/loop glyph for the "playthroughs" stat. */
+function IconRepeat({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m17 2 4 4-4 4" />
+      <path d="M3 11v-1a4 4 0 0 1 4-4h14" />
+      <path d="m7 22-4-4 4-4" />
+      <path d="M21 13v1a4 4 0 0 1-4 4H3" />
+    </svg>
+  )
+}
+
 /**
  * PROTOTYPE — richer game details, matched to the reference mockup within our data. Earned trophies
  * come from /game-trophies, everything under "Game info / Critic score" from RAWG (/meta). Unearned
@@ -94,6 +134,8 @@ export function GameDetails({
   const [meta, setMeta] = useState<GameMeta | undefined>(undefined)
   const [trophies, setTrophies] = useState<RecentTrophy[] | undefined>(undefined)
   const [platformFilter, setPlatformFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState<TType | ''>('')
+  const [sortBy, setSortBy] = useState<SortKey>('grade')
 
   useEffect(() => {
     let alive = true
@@ -131,6 +173,24 @@ export function GameDetails({
     ? platformFilter
     : (trophyPlatforms[0] ?? '')
 
+  // Guide link: send the user to a prefilled search. Their browser opens it, so no scraping /
+  // Cloudflare / API is involved. The top results are almost always the right trophy guide.
+  const guideUrl = `https://www.google.com/search?q=${encodeURIComponent(
+    `${game.title} ${activePlatform} trophy guide`.trim(),
+  )}`
+
+  // Inline progress editing straight from the hero bar (no modal for these).
+  const toggleBeaten = async () => {
+    if (platinum) return // a platinum'd game is always beaten — nothing to toggle
+    const next = !game.beaten
+    await setBeaten(game.key, next)
+    setGame((p) => ({ ...p, beaten: next }))
+  }
+  const rate = async (r: number) => {
+    await setRating(game.key, r)
+    setGame((p) => ({ ...p, rating: r }))
+  }
+
   const shownTrophies = (trophies ?? []).filter((t) => platOf(t) === activePlatform)
   const totalCount = shownTrophies.length
   const earnedCount = shownTrophies.filter((t) => t.earnedAt).length
@@ -160,15 +220,23 @@ export function GameDetails({
         ],
   )
 
-  // Flat list ordered by grade (platinum → gold → silver → bronze), then by how rare the trophy is
-  // (lowest obtain-rate first). Steam achievements (no grade) fall to the end.
+  // Optional filter by trophy grade (the clickable type chips), then sort by the chosen key.
+  const filteredTrophies = typeFilter
+    ? shownTrophies.filter((t) => t.type === typeFilter)
+    : shownTrophies
   const GRADE_RANK: Record<string, number> = { platinum: 0, gold: 1, silver: 2, bronze: 3 }
-  const sortedTrophies = [...shownTrophies].sort((a, b) => {
-    const ga = GRADE_RANK[a.type ?? ''] ?? 9
-    const gb = GRADE_RANK[b.type ?? ''] ?? 9
-    if (ga !== gb) return ga - gb
-    return (a.rarity ?? 101) - (b.rarity ?? 101)
-  })
+  const SORTERS: Record<SortKey, (a: RecentTrophy, b: RecentTrophy) => number> = {
+    // Grade (platinum → bronze), then rarest first. Steam achievements (no grade) fall to the end.
+    grade: (a, b) => {
+      const ga = GRADE_RANK[a.type ?? ''] ?? 9
+      const gb = GRADE_RANK[b.type ?? ''] ?? 9
+      return ga !== gb ? ga - gb : (a.rarity ?? 101) - (b.rarity ?? 101)
+    },
+    rarity: (a, b) => (a.rarity ?? 101) - (b.rarity ?? 101),
+    earned: (a, b) => (b.earnedAt ?? '').localeCompare(a.earnedAt ?? ''),
+    name: (a, b) => a.name.localeCompare(b.name),
+  }
+  const sortedTrophies = [...filteredTrophies].sort(SORTERS[sortBy])
 
   // Split the (already sorted) list into the base game and each DLC, using the trophy group id
   // mapped to the DLC names we already have on the game's trophy sets.
@@ -199,7 +267,7 @@ export function GameDetails({
     <div className="gd">
       <TrophyDefs />
       <button className="gd-back" onClick={onBack}>
-        ← Back to Library
+        ← Library
       </button>
 
       <div className="gd-hero">
@@ -250,50 +318,78 @@ export function GameDetails({
             </div>
           </div>
 
-          <div className="gd-stat">
+          <button
+            type="button"
+            className={`gd-stat gd-stat-btn ${beaten ? 'is-on' : ''}`}
+            onClick={toggleBeaten}
+            disabled={platinum}
+            title={platinum ? 'Platinum earned — always beaten' : 'Toggle beaten'}
+          >
             <span className={`gd-stat-icon ${beaten ? 'gd-stat-beaten' : ''}`}>
               {beaten ? '✓' : '○'}
             </span>
             <div className="gd-stat-text">
               <div className="gd-stat-val">{beaten ? 'Beaten' : 'Not beaten'}</div>
-              <div className="gd-stat-sub">progress</div>
+              <div className="gd-stat-sub">{platinum ? 'via platinum' : 'tap to toggle'}</div>
             </div>
-          </div>
+          </button>
 
-          <div className="gd-stat">
+          <div className="gd-stat gd-stat-rating">
             <span className="gd-stat-icon gd-stat-star">★</span>
             <div className="gd-stat-text">
-              <div className="gd-stat-val">
-                {rating ? (
-                  <>
-                    {rating * 2}/10 <Stars value={rating} />
-                  </>
-                ) : (
-                  'Unrated'
-                )}
-              </div>
+              <StarRating value={rating} onChange={rate} />
               <div className="gd-stat-sub">your rating</div>
             </div>
           </div>
 
-          <button className="gd-edit-btn" onClick={() => setEditing(true)}>
-            ✎ Edit progress
-          </button>
+          {game.manual ? (
+            <button className="gd-edit-btn" onClick={() => setEditing(true)}>
+              ✎ Edit hours
+            </button>
+          ) : null}
         </div>
       </div>
 
       <div className="gd-body">
         <div className="gd-main">
           <section className="gd-card">
-            <div className="gd-trophy-bar">
-              <h2 className="gd-card-title">
+            <div className="gd-trophy-head">
+              <h2 className="gd-card-title gd-trophy-title">
                 <IconTrophy size={16} /> Trophies
+                <span className="gd-trophy-count">
+                  {earnedCount}
+                  <span className="gd-trophy-count-total">/{totalCount}</span>
+                </span>
               </h2>
-              <span className="gd-trophy-count">
-                {earnedCount}
-                <span className="gd-trophy-count-total">/{totalCount}</span>
-              </span>
-              <span className="gd-trophy-pct">{platProgress}%</span>
+              <div className="gd-trophy-completion">
+                <span className="gd-completion-pct">{platProgress}%</span>
+                <span className="gd-completion-label">Completion</span>
+              </div>
+            </div>
+            <div className="gd-bar">
+              <div className="gd-bar-fill" style={{ width: `${platProgress}%` }} />
+            </div>
+
+            <div className="gd-type-boxes">
+              {TYPE_ORDER.map((tt) =>
+                typeCounts[tt] ? (
+                  <button
+                    key={tt}
+                    type="button"
+                    className={`gd-type-box ${typeFilter === tt ? 'on' : ''}`}
+                    onClick={() => setTypeFilter(typeFilter === tt ? '' : tt)}
+                  >
+                    <TrophyIcon type={tt} size={24} />
+                    <div className="gd-type-box-text">
+                      <span className="gd-type-box-count">{typeCounts[tt]}</span>
+                      <span className="gd-type-box-name">{tt}</span>
+                    </div>
+                  </button>
+                ) : null,
+              )}
+            </div>
+
+            <div className="gd-trophy-controls">
               {trophyPlatforms.length > 1 ? (
                 <div className="gd-pf-seg">
                   {trophyPlatforms.map((p) => (
@@ -306,21 +402,26 @@ export function GameDetails({
                   ))}
                 </div>
               ) : null}
-            </div>
-
-            <div className="gd-types">
-              {TYPE_ORDER.map((tt) =>
-                typeCounts[tt] ? (
-                  <span key={tt} className="gd-type-chip">
-                    <TrophyIcon type={tt} size={19} />
-                    <b>{typeCounts[tt]}</b>
-                    <span className="gd-type-name">{tt}</span>
-                  </span>
-                ) : null,
-              )}
-            </div>
-            <div className="gd-bar">
-              <div className="gd-bar-fill" style={{ width: `${platProgress}%` }} />
+              {typeFilter ? (
+                <button type="button" className="gd-type-clear" onClick={() => setTypeFilter('')}>
+                  Clear filter ✕
+                </button>
+              ) : null}
+              <div className="gd-sort-group">
+                <span className="gd-sort-label">Sort by</span>
+                <div className="gd-seg" role="group" aria-label="Sort trophies">
+                  {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`gd-seg-btn ${sortBy === k ? 'on' : ''}`}
+                      onClick={() => setSortBy(k)}
+                    >
+                      {SORT_LABELS[k]}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {trophies === undefined ? (
@@ -333,12 +434,14 @@ export function GameDetails({
                   <div className="gd-placeholder">No trophies recorded for this game.</div>
                 ) : dlcSections.length ? (
                   <>
-                    <div className="gd-sec">
-                      <div className="gd-sec-head">Base game</div>
-                      {baseTrophies.map((t, i) => (
-                        <TrophyRow key={i} t={t} />
-                      ))}
-                    </div>
+                    {baseTrophies.length ? (
+                      <div className="gd-sec">
+                        <div className="gd-sec-head">Base game</div>
+                        {baseTrophies.map((t, i) => (
+                          <TrophyRow key={i} t={t} />
+                        ))}
+                      </div>
+                    ) : null}
                     {dlcSections.map((d, di) => (
                       <div key={di} className="gd-sec">
                         <div className="gd-sec-head gd-sec-dlc">
@@ -405,6 +508,90 @@ export function GameDetails({
               )
             })}
           </section>
+
+          {(() => {
+            const g = meta.guide
+            const hasDiff = g?.difficulty != null
+            const flags = [
+              g?.missable ? { icon: '⚠️', label: 'Missable' } : null,
+              g?.online ? { icon: '🌐', label: 'Online' } : null,
+              g?.buggy ? { icon: '🐛', label: 'Buggy' } : null,
+            ].filter((f): f is { icon: string; label: string } => f != null)
+            return (
+              <section className="gd-card gd-guide-card">
+                <h2 className="gd-card-title gd-guide-title">
+                  <IconTrophy size={15} /> Platinum guide
+                  {g?.source ? <span className="gd-soon">{g.source}</span> : null}
+                </h2>
+                {hasDiff ? (
+                  <div className="gd-guide-top">
+                    <div className="gd-diff">
+                      <span className="gd-diff-num">{g!.difficulty}</span>
+                      <span className="gd-diff-max">/10</span>
+                    </div>
+                    <div className="gd-diff-text">
+                      <div className="gd-diff-label">Difficulty</div>
+                      <div className="gd-diff-sub">
+                        Community rated{g?.source ? ` · ${g.source}` : ''}
+                      </div>
+                    </div>
+                    <div className="gd-diff-scale">{g!.difficulty} / 10</div>
+                  </div>
+                ) : null}
+                {hasDiff ? (
+                  <div className="gd-diff-segs">
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <span
+                        key={i}
+                        className={`gd-diff-seg ${i < Math.round(g!.difficulty ?? 0) ? 'on' : ''}`}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {g?.hours != null || g?.playthroughs != null ? (
+                  <div className="gd-guide-stats">
+                    {g?.hours != null ? (
+                      <div className="gd-guide-stat">
+                        <IconClock size={18} />
+                        <div className="gd-guide-stat-text">
+                          <span className="gd-guide-stat-val">~{g.hours}h</span>
+                          <span className="gd-guide-stat-key">to platinum</span>
+                        </div>
+                      </div>
+                    ) : null}
+                    {g?.playthroughs != null ? (
+                      <div className="gd-guide-stat">
+                        <IconRepeat size={18} />
+                        <div className="gd-guide-stat-text">
+                          <span className="gd-guide-stat-val">{g.playthroughs}</span>
+                          <span className="gd-guide-stat-key">
+                            playthrough{g.playthroughs === 1 ? '' : 's'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {flags.length ? (
+                  <div className="gd-guide-flags">
+                    {flags.map((f) => (
+                      <span key={f.label} className="gd-guide-flag">
+                        {f.icon} {f.label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <a
+                  className="gd-guide-btn"
+                  href={g?.guideUrl ?? guideUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View platinum guide →
+                </a>
+              </section>
+            )
+          })()}
 
           <section className="gd-card">
             <h2 className="gd-card-title">
@@ -477,26 +664,6 @@ export function GameDetails({
         </aside>
       </div>
 
-      {meta?.found && meta.similar.length ? (
-        <section className="gd-card gd-similar-card">
-          <h2 className="gd-card-title">
-            <IconLibrary size={15} /> More like this <span className="gd-soon">RAWG</span>
-          </h2>
-          <div className="gd-similar">
-            {meta.similar.map((s, i) => (
-              <div key={i} className="gd-similar-item" title={s.name}>
-                {s.image ? (
-                  <img className="gd-similar-cover" src={s.image} alt={s.name} loading="lazy" />
-                ) : (
-                  <div className="gd-similar-cover gd-similar-empty">{s.name.slice(0, 1)}</div>
-                )}
-                <div className="gd-similar-name">{s.name}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       {editing ? (
         <GameModal
           game={game}
@@ -568,6 +735,7 @@ function ScoreCircle({
 
 function TrophyRow({ t }: { t: RecentTrophy }) {
   const earned = !!t.earnedAt
+  const rl = rarityLabel(t.rarity)
   return (
     <div className={`gd-trophy-row ${earned ? 'gd-earned-row' : 'gd-unearned-row'}`}>
       {t.iconUrl ? (
@@ -579,19 +747,26 @@ function TrophyRow({ t }: { t: RecentTrophy }) {
         <div className="gd-trophy-name">{t.name}</div>
         {t.detail ? <div className="gd-trophy-detail">{t.detail}</div> : null}
       </div>
-      {t.rarity != null ? <span className="gd-trophy-rarity">{t.rarity}%</span> : null}
-      <div className="gd-trophy-earned">
-        {t.type ? <TrophyIcon type={t.type as TType} size={22} /> : null}
-        <div className="gd-earned-text">
-          {earned ? (
-            <>
-              <div className="gd-earned-label">Earned</div>
-              <div className="gd-earned-date">{formatDate(t.earnedAt)}</div>
-            </>
-          ) : (
-            <div className="gd-locked-label">Locked</div>
-          )}
-        </div>
+      <div className="gd-trophy-status">
+        {earned ? (
+          <>
+            <div className="gd-earned-label">Earned</div>
+            <div className="gd-earned-date">{formatDate(t.earnedAt)}</div>
+          </>
+        ) : (
+          <div className="gd-locked-label">Locked</div>
+        )}
+      </div>
+      <div className="gd-trophy-rarity">
+        {t.rarity != null ? (
+          <>
+            <span className="gd-rarity-pct">{t.rarity}%</span>
+            {rl ? <span className="gd-rarity-label">{rl}</span> : null}
+          </>
+        ) : null}
+      </div>
+      <div className="gd-trophy-grade">
+        {t.type ? <TrophyIcon type={t.type as TType} size={34} /> : null}
       </div>
     </div>
   )

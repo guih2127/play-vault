@@ -305,9 +305,9 @@ export class PsnProvider implements GameProvider {
     titles: TrophyTitle[],
     known: Map<string, string>,
   ): Promise<TrophyUpdate[]> {
-    const changed = titles.filter(
-      (t) => t.base.earned > 0 && known.get(t.id) !== (t.lastUpdated ?? ''),
-    );
+    // Fetch any title whose lastUpdated differs from what we've stored — including titles with 0
+    // earned trophies, so the details screen can still show the full (all-locked) trophy list.
+    const changed = titles.filter((t) => known.get(t.id) !== (t.lastUpdated ?? ''));
     this.logger.log(`Trophy sync: ${changed.length}/${titles.length} titles changed`);
 
     const updates: TrophyUpdate[] = [];
