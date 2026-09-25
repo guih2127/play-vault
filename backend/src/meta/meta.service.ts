@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { DatabaseService } from '../db/database.service.js';
+import { TrophyGuideService, type TrophyGuide } from './trophy-guide.service.js';
 
 export interface GameMeta {
   found: boolean;
@@ -22,6 +23,8 @@ export interface GameMeta {
   similar: { name: string; image?: string }[];
   description?: string;
   rawgUrl?: string;
+  /** Platinum difficulty/hours/playthroughs + guide, from the trophy-guide dataset (PSN only). */
+  guide?: TrophyGuide;
 }
 
 const EMPTY_META = (configured: boolean): GameMeta => ({
@@ -39,6 +42,7 @@ export class MetaService {
   constructor(
     private readonly config: ConfigService,
     private readonly db: DatabaseService,
+    private readonly trophyGuide: TrophyGuideService,
   ) {}
 
   private get key(): string | undefined {
@@ -46,21 +50,29 @@ export class MetaService {
   }
 
   async getMeta(gameKey: string, title: string): Promise<GameMeta> {
-    if (!this.key) return EMPTY_META(false);
-
     const cached = await this.db.getMeta<GameMeta>(gameKey);
-    if (cached) return { ...EMPTY_META(true), ...cached, configured: true };
+    if (cached) return { ...EMPTY_META(!!this.key), ...cached, configured: !!this.key };
 
-    try {
-      const meta = await this.fetchRawg(title);
-      await this.db.setMeta(gameKey, meta);
-      return { ...meta, configured: true };
-    } catch (err) {
-      this.logger.warn(
-        `RAWG metadata failed for "${title}": ${err instanceof Error ? err.message : err}`,
-      );
-      return EMPTY_META(true);
-    }
+    // RAWG (critic scores, similar, info) and the trophy-guide dataset (platinum difficulty/guide)
+    // are independent sources — fetch in parallel and let either fail without losing the other.
+    const [rawg, guide] = await Promise.all([
+      this.key
+        ? this.fetchRawg(title).catch((err) => {
+            this.logger.warn(
+              `RAWG metadata failed for "${title}": ${err instanceof Error ? err.message : err}`,
+            );
+            return null;
+          })
+        : Promise.resolve(null),
+      this.trophyGuide.lookup(title).catch(() => null),
+    ]);
+
+    const meta: GameMeta = { ...EMPTY_META(!!this.key), ...(rawg ?? {}), configured: !!this.key };
+    if (guide) meta.guide = guide;
+
+    // Cache only when a source actually returned data, so a transient miss can be retried later.
+    if (rawg || guide) await this.db.setMeta(gameKey, meta);
+    return meta;
   }
 
   private async fetchRawg(title: string): Promise<GameMeta> {
@@ -77,33 +89,45 @@ export class MetaService {
     });
     const d = detail.data ?? {};
 
-    // Similar games — RAWG's /suggested endpoint needs a paid plan, so it fails soft and we fall
-    // back to top games in the same genre (free) so the "More like this" row still has content.
-    const toSimilar = (arr: any[]): GameMeta['similar'] =>
-      (arr ?? [])
-        .filter((g) => g?.id !== hit.id && g?.name)
-        .slice(0, 6)
-        .map((g: any) => ({ name: g.name, image: g.background_image ?? undefined }));
-    let similar: GameMeta['similar'] = [];
-    try {
-      const sug = await axios.get(`https://api.rawg.io/api/games/${hit.id}/suggested`, {
-        params: { key: this.key, page_size: 6 },
-        timeout: 10000,
-      });
-      similar = toSimilar(sug.data?.results);
-    } catch {
-      /* suggested endpoint not available on this plan — fall through to the genre fallback */
-    }
-    if (!similar.length && d.genres?.[0]?.slug) {
-      try {
-        const byGenre = await axios.get('https://api.rawg.io/api/games', {
-          params: { key: this.key, genres: d.genres[0].slug, ordering: '-added', page_size: 8 },
-          timeout: 10000,
-        });
-        similar = toSimilar(byGenre.data?.results);
-      } catch {
-        /* leave empty */
+    // Similar games. RAWG's /suggested endpoint needs a paid plan, so we build the "More like this"
+    // row from free endpoints, most-relevant first: the game's own series (same franchise), then the
+    // most popular games sharing its top genres. We merge, dedupe and cap at 6 — ordering by
+    // popularity (-added) keeps the picks recognizable instead of obscure recently-added titles.
+    const similar: GameMeta['similar'] = [];
+    const seen = new Set<string>([String(hit.id)]);
+    const add = (arr: any[]) => {
+      for (const g of arr ?? []) {
+        if (similar.length >= 6) break;
+        const id = String(g?.id ?? '');
+        if (!g?.name || (id && seen.has(id))) continue;
+        if (id) seen.add(id);
+        similar.push({ name: g.name, image: g.background_image ?? undefined });
       }
+    };
+    const trySource = async (url: string, params: Record<string, unknown>) => {
+      if (similar.length >= 6) return;
+      try {
+        const res = await axios.get(url, { params: { key: this.key, ...params }, timeout: 10000 });
+        add(res.data?.results);
+      } catch {
+        /* endpoint unavailable on this plan or no results — skip */
+      }
+    };
+
+    // 1) Premium suggestions (best when the plan allows it). 2) Same franchise. 3) Popular in genre.
+    await trySource(`https://api.rawg.io/api/games/${hit.id}/suggested`, { page_size: 6 });
+    await trySource(`https://api.rawg.io/api/games/${hit.id}/game-series`, { page_size: 6 });
+    const genres = (d.genres ?? [])
+      .slice(0, 2)
+      .map((g: any) => g?.slug)
+      .filter(Boolean)
+      .join(',');
+    if (genres) {
+      await trySource('https://api.rawg.io/api/games', {
+        genres,
+        ordering: '-added',
+        page_size: 12,
+      });
     }
 
     return {
