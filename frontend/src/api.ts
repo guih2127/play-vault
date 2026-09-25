@@ -303,6 +303,20 @@ export interface GameMeta {
   similar: { name: string; image?: string }[]
   description?: string
   rawgUrl?: string
+  guide?: TrophyGuide
+}
+
+/** Platinum guide data (difficulty/hours/playthroughs/warnings/link) from the trophy-guide dataset. */
+export interface TrophyGuide {
+  difficulty?: number
+  playthroughs?: number
+  hours?: number
+  guideUrl?: string
+  source?: string
+  authors?: string[]
+  missable: boolean
+  online: boolean
+  buggy: boolean
 }
 
 export async function fetchMeta(key: string, title: string): Promise<GameMeta> {

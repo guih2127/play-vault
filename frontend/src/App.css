@@ -4544,6 +4544,31 @@
   transform: translateY(1px);
 }
 
+/* beaten stat as an inline toggle button */
+.gd-stat-btn {
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+.gd-stat-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+.gd-stat-btn:disabled {
+  cursor: default;
+}
+/* inline star rating sized for the hero bar */
+.gd-stat-rating .star-wrap {
+  font-size: 18px;
+}
+.gd-stat-rating .stars-clear {
+  margin-left: 6px;
+}
+
 /* trophies card header */
 .gd-trophy-bar {
   display: flex;
@@ -4594,25 +4619,141 @@
 }
 
 /* trophy type counts */
-.gd-types {
+/* trophy header — title + count · completion% */
+.gd-trophy-head {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
-.gd-type-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.gd-trophy-title {
+  margin: 0;
+}
+.gd-trophy-title .gd-trophy-count {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 800;
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 2px;
+}
+.gd-trophy-title .gd-trophy-count-total {
+  color: var(--text-dim);
   font-size: 13px;
+}
+.gd-trophy-completion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+  flex-shrink: 0;
+}
+.gd-completion-pct {
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--accent-2);
+}
+.gd-completion-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: var(--text-dim);
 }
-.gd-type-chip b {
-  color: var(--text);
-  font-weight: 800;
+
+/* trophy grade summary — one box per grade, doubling as a filter toggle */
+.gd-type-boxes {
+  display: flex;
+  margin-top: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  overflow: hidden;
 }
-.gd-type-name {
+.gd-type-box {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.gd-type-box:first-child {
+  border-left: none;
+}
+.gd-type-box:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.gd-type-box.on {
+  background: var(--accent-soft);
+}
+.gd-type-box-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+  min-width: 0;
+}
+.gd-type-box-count {
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+}
+.gd-type-box-name {
+  font-size: 11px;
+  color: var(--text-dim);
   text-transform: capitalize;
+}
+
+.gd-trophy-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+/* platform selector belongs on the left here (override the global right-push) */
+.gd-trophy-controls .gd-pf-seg {
+  margin-left: 0;
+}
+.gd-type-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-2);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+.gd-type-clear:hover {
+  background: rgba(245, 50, 110, 0.22);
+  color: #fff;
+}
+.gd-sort-group {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.gd-sort-label {
+  font-size: 12px;
+  color: var(--text-mut);
+}
+.gd-sort-group .gd-seg {
+  margin-left: 0;
+}
+.gd-seg-btn:hover:not(.on) {
+  color: var(--text);
 }
 
 /* trophy list — grouped by grade, PSN-style */
@@ -4688,7 +4829,7 @@
   align-items: center;
   gap: 12px;
   padding: 9px 10px;
-  border-radius: 9px;
+  border-radius: 0;
   margin-top: 3px;
 }
 .gd-earned-row {
@@ -4733,23 +4874,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.gd-trophy-rarity {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--accent-2);
+/* right-side columns of a trophy row: status (date) · rarity · grade cup — fixed widths so the
+   cups line up in a column at the far end, PSN-style */
+.gd-trophy-status {
   flex-shrink: 0;
-  min-width: 42px;
-  text-align: right;
-}
-.gd-trophy-earned {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  min-width: 128px;
-  justify-content: flex-end;
-}
-.gd-earned-text {
+  width: 96px;
   text-align: right;
   line-height: 1.25;
 }
@@ -4767,8 +4896,36 @@
   font-weight: 700;
   color: var(--text-mut);
 }
+.gd-trophy-rarity {
+  flex-shrink: 0;
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+.gd-rarity-pct {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent-2);
+}
+.gd-rarity-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-mut);
+}
+.gd-trophy-grade {
+  flex-shrink: 0;
+  width: 40px;
+  display: flex;
+  justify-content: center;
+}
 .gd-unearned-row {
-  opacity: 0.6;
+  opacity: 0.7;
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: inset 3px 0 0 var(--border);
 }
 .gd-unearned-row .gd-trophy-icon {
   filter: grayscale(0.75);
@@ -4823,6 +4980,151 @@
   margin-top: 10px;
   font-size: 11.5px;
   color: var(--text-mut);
+}
+
+/* platinum guide (prototype) */
+.gd-guide-title {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.gd-guide-title svg {
+  color: var(--accent-2);
+}
+.gd-guide-top {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+.gd-diff-text {
+  min-width: 0;
+}
+.gd-diff-scale {
+  margin-left: auto;
+  align-self: flex-start;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.gd-diff-segs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.gd-diff-seg {
+  flex: 1;
+  height: 7px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.gd-diff-seg.on {
+  background: var(--accent);
+}
+.gd-diff {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  flex-shrink: 0;
+  background: linear-gradient(160deg, var(--accent-2), var(--accent));
+  box-shadow: 0 0 14px rgba(245, 50, 110, 0.3);
+}
+.gd-diff-num {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+.gd-diff-max {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.75);
+}
+.gd-diff-label {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+}
+.gd-diff-sub {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+.gd-guide-stats {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.gd-guide-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 12px;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-soft);
+}
+.gd-guide-stat svg {
+  color: var(--accent-2);
+  flex-shrink: 0;
+}
+.gd-guide-stat-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gd-guide-stat-val {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 800;
+}
+.gd-guide-stat-key {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  line-height: 1.2;
+}
+.gd-guide-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.gd-guide-flag {
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+.gd-guide-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(160deg, var(--accent-2), var(--accent));
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+.gd-guide-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(245, 50, 110, 0.4);
 }
 
 /* similar games */

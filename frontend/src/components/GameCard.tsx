@@ -297,7 +297,7 @@ function ManualHoursEditor({
   )
 }
 
-function StarRating({
+export function StarRating({
   value,
   onChange,
   readOnly = false,
