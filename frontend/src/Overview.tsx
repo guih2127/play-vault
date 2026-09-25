@@ -34,6 +34,7 @@ interface PlatItem {
   coverUrl?: string
   earnedAt?: string
   platinumIconUrl?: string
+  platform?: string
   rarity?: number
   provider: 'psn' | 'steam'
 }
