@@ -65,6 +65,48 @@ describe('DatabaseService per-user isolation', () => {
     await db.onModuleDestroy();
   });
 
+  it('caches the trophy store per user, invalidating only the owner on write', async () => {
+    const db = await makeTestDb();
+    const u1 = await db.createPasswordUser({ email: 'u1@x.com', passwordHash: 'h' });
+    const u2 = await db.createPasswordUser({ email: 'u2@x.com', passwordHash: 'h' });
+
+    await db.upsertTitleTrophies(u1.id, 'NP1', '2024-01-01', [{ name: 't1' }]);
+    const first = await db.getAllStoredTrophies(u1.id);
+    const second = await db.getAllStoredTrophies(u1.id);
+    expect(second).toBe(first); // same reference => served from cache, not re-read
+    expect(first).toHaveLength(1);
+
+    // A write for another user must not disturb u1's cached array.
+    await db.upsertTitleTrophies(u2.id, 'NPX', '2024-01-01', [{ name: 'x' }]);
+    expect(await db.getAllStoredTrophies(u1.id)).toBe(first);
+
+    // u1's own write evicts the entry, and the next read reflects the new data.
+    await db.upsertTitleTrophies(u1.id, 'NP2', '2024-02-01', [{ name: 't2' }]);
+    const third = await db.getAllStoredTrophies(u1.id);
+    expect(third).not.toBe(first);
+    expect(third).toHaveLength(2);
+    await db.onModuleDestroy();
+  });
+
+  it('caches the latest snapshot and invalidates it on save', async () => {
+    const db = await makeTestDb();
+    const u = await db.createPasswordUser({ email: 'snap@x.com', passwordHash: 'h' });
+
+    // Nothing synced yet: the "no snapshot" result is cached too (null, not a miss).
+    expect(await db.getLatestSnapshot(u.id)).toBeNull();
+
+    await db.saveSnapshot(u.id, '2024-01-01', { providers: [], games: [{ key: 'a' }] });
+    const first = await db.getLatestSnapshot(u.id);
+    expect(await db.getLatestSnapshot(u.id)).toBe(first); // cached
+
+    await db.saveSnapshot(u.id, '2024-02-01', { providers: [], games: [{ key: 'b' }] });
+    const next = await db.getLatestSnapshot<{ games: { key: string }[] }>(u.id);
+    expect(next).not.toBe(first); // save invalidated the cache
+    expect(next?.createdAt).toBe('2024-02-01');
+    expect(next?.data.games[0].key).toBe('b');
+    await db.onModuleDestroy();
+  });
+
   it('deletes manual games only for the owning user', async () => {
     const db = await makeTestDb();
     const u1 = await db.createPasswordUser({ email: 'u1@x.com', passwordHash: 'h' });
