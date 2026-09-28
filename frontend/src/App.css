@@ -5453,6 +5453,14 @@
   display: grid;
   place-items: center;
 }
+/* slightly smaller platform chip in list rows */
+.tt-row .src-tag-icon {
+  padding: 3px 6px;
+}
+.tt-row .src-tag-icon svg {
+  width: 13px;
+  height: 13px;
+}
 .tt-grade--plat {
   filter: drop-shadow(0 0 6px rgba(143, 179, 230, 0.75));
 }
