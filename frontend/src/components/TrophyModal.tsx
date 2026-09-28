@@ -3,6 +3,23 @@ import type { RecentTrophy } from '../types'
 import { formatDate } from '../format'
 import { SourceTag } from './PlatformTag'
 
+const GRADE_FILL: Record<'bronze' | 'silver' | 'gold' | 'platinum', string> = {
+  bronze: 'var(--bronze)',
+  silver: 'var(--silver)',
+  gold: 'var(--gold)',
+  platinum: 'var(--plat)',
+}
+const CUP_PATH =
+  'M5 4h14v2h2v3a4 4 0 0 1-4 4h-.2A5 5 0 0 1 13 15.9V18h3v2H8v-2h3v-2.1A5 5 0 0 1 7.2 13H7a4 4 0 0 1-4-4V6h2V4Zm0 4v1a2 2 0 0 0 2 2V8H5Zm14 0h-2v3a2 2 0 0 0 2-2V8Z'
+
+function Cup({ color, size = 22 }: { color: string; size?: number }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill={color} aria-hidden="true">
+      <path d={CUP_PATH} />
+    </svg>
+  )
+}
+
 function rarityLabel(rarity?: number): string | null {
   if (rarity == null) return null
   if (rarity <= 5) return 'Ultra Rare'
@@ -55,8 +72,8 @@ export function TrophyModal({ trophy, onClose }: { trophy: RecentTrophy; onClose
           <h2 className="trophy-modal-name">{trophy.name}</h2>
 
           <div className="trophy-modal-badges">
-            <span className={`trophy-type trophy-type-${trophy.type ?? 'steam'}`}>
-              {typeLabel(trophy)}
+            <span className="trophy-type-icon" title={typeLabel(trophy)}>
+              <Cup color={trophy.type ? GRADE_FILL[trophy.type] : 'var(--text-dim)'} size={22} />
             </span>
             {rarity ? (
               <span className="trophy-rarity-label">

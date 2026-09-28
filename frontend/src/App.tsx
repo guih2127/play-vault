@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   BrowserRouter,
   NavLink,
@@ -13,8 +13,18 @@ import {
   useSearchParams,
 } from 'react-router-dom'
 import './App.css'
-import { fetchDashboard, fetchGames, getMe, logout, syncNow } from './api'
-import type { AggregatedGame, Dashboard, User } from './types'
+import {
+  deleteBacklogGame,
+  fetchBacklog,
+  fetchDashboard,
+  fetchGames,
+  getMe,
+  logout,
+  setBacklogPriority,
+  startBacklogGame,
+  syncNow,
+} from './api'
+import type { AggregatedGame, BacklogItem, Dashboard, User } from './types'
 import { GameDetails } from './GameDetails'
 import { formatDateTime } from './format'
 import { Login } from './Login'
@@ -306,6 +316,69 @@ function BacklogPage() {
   return <Backlog refreshKey={refreshKey} />
 }
 
+function BacklogDetailsPage() {
+  const { id } = useParams()
+  const navigate = useNavigate()
+  const { refreshKey } = useAppContext()
+  const [item, setItem] = useState<BacklogItem | null | undefined>(undefined)
+
+  useEffect(() => {
+    fetchBacklog()
+      .then((items) => setItem(items.find((i) => String(i.id) === id) ?? null))
+      .catch(() => setItem(null))
+  }, [id, refreshKey])
+
+  // A backlog entry isn't a real (played) game, so synthesize the minimal AggregatedGame the details
+  // page needs — RAWG meta still resolves from the title, trophies/playtime are simply empty.
+  const game = useMemo<AggregatedGame | null>(
+    () =>
+      item
+        ? {
+            key: `backlog:${item.id}`,
+            title: item.title,
+            platformLabels: [item.platform],
+            providers: [],
+            totalPlaytimeMinutes: 0,
+            playtimeKnown: false,
+            genres: [],
+            coverUrl: item.coverUrl,
+            trophySets: [],
+            platinum: { earned: 0, total: 0 },
+          }
+        : null,
+    [item],
+  )
+
+  const onPriority = useCallback(async (bid: number, value: number) => {
+    setItem((p) => (p && p.id === bid ? { ...p, priority: value } : p))
+    await setBacklogPriority(bid, value)
+  }, [])
+  const onStart = useCallback(
+    async (bid: number) => {
+      await startBacklogGame(bid)
+      navigate('/library?status=playing')
+    },
+    [navigate],
+  )
+  const onDelete = useCallback(
+    async (bid: number) => {
+      await deleteBacklogGame(bid)
+      navigate('/backlog')
+    },
+    [navigate],
+  )
+
+  if (item === undefined) return <LoadingState />
+  if (!item || !game) return <div className="state">Game not found.</div>
+  return (
+    <GameDetails
+      game={game}
+      onBack={() => navigate('/backlog')}
+      backlog={{ item, onPriority, onStart, onDelete }}
+    />
+  )
+}
+
 function TrophiesRoute() {
   const { refreshKey } = useAppContext()
   const [meta, setMeta] = useState<Dashboard | null>(null)
@@ -364,6 +437,7 @@ function App() {
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/game/:key" element={<GameDetailsPage />} />
           <Route path="/backlog" element={<BacklogPage />} />
+          <Route path="/backlog/:id" element={<BacklogDetailsPage />} />
           <Route path="/trophies" element={<TrophiesRoute />} />
           <Route path="/profile" element={<ProfileRoute />} />
           <Route path="/users" element={<Users />} />

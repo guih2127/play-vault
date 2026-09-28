@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { AggregatedGame, RecentTrophy } from './types'
+import type { AggregatedGame, BacklogItem, RecentTrophy } from './types'
 import {
   fetchGameTrophies,
   fetchMeta,
@@ -13,7 +13,9 @@ import { formatDate, formatHours } from './format'
 import { PlatformBadge, dedupePlatformLabels } from './components/PlatformTag'
 import { GameModal, StarRating } from './components/GameCard'
 import { LoadingState, Spinner } from './components/Spinner'
+import { PRIORITIES, priorityInfo } from './Backlog'
 import {
+  IconBacklog,
   IconChart,
   IconCheckCircle,
   IconClock,
@@ -124,13 +126,24 @@ function IconRepeat({ size = 16 }: { size?: number }) {
 export function GameDetails({
   game: initialGame,
   onBack,
+  backlog,
 }: {
   game: AggregatedGame
   onBack: () => void
+  // When set, the game is a not-yet-started backlog entry: trophies/playtime don't exist, so the
+  // page swaps its progress UI for backlog controls (priority, move to playing, remove).
+  backlog?: {
+    item: BacklogItem
+    onPriority: (id: number, value: number) => void | Promise<void>
+    onStart: (id: number) => void | Promise<void>
+    onDelete: (id: number) => void | Promise<void>
+  }
 }) {
+  const isBacklog = !!backlog
   const [game, setGame] = useState(initialGame)
   useEffect(() => setGame(initialGame), [initialGame])
   const [editing, setEditing] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [meta, setMeta] = useState<GameMeta | undefined>(undefined)
   const [trophies, setTrophies] = useState<RecentTrophy[] | undefined>(undefined)
   const [platformFilter, setPlatformFilter] = useState('')
@@ -146,13 +159,17 @@ export function GameDetails({
           alive &&
           setMeta({ found: false, configured: true, genres: [], platforms: [], similar: [] }),
       )
-    fetchGameTrophies(game.key)
-      .then((t) => alive && setTrophies(t))
-      .catch(() => alive && setTrophies([]))
+    if (isBacklog) {
+      setTrophies([]) // a backlog game has no trophy data yet
+    } else {
+      fetchGameTrophies(game.key)
+        .then((t) => alive && setTrophies(t))
+        .catch(() => alive && setTrophies([]))
+    }
     return () => {
       alive = false
     }
-  }, [game.key, game.title])
+  }, [game.key, game.title, isBacklog])
 
   const platinum = game.platinum.earned > 0
   const beaten = platinum || !!game.beaten
@@ -189,6 +206,15 @@ export function GameDetails({
   const rate = async (r: number) => {
     await setRating(game.key, r)
     setGame((p) => ({ ...p, rating: r }))
+  }
+  const moveToPlaying = async () => {
+    if (!backlog) return
+    setBusy(true)
+    try {
+      await backlog.onStart(backlog.item.id)
+    } finally {
+      setBusy(false)
+    }
   }
 
   const shownTrophies = (trophies ?? []).filter((t) => platOf(t) === activePlatform)
@@ -267,7 +293,7 @@ export function GameDetails({
     <div className="gd">
       <TrophyDefs />
       <button className="gd-back" onClick={onBack}>
-        ← Library
+        {isBacklog ? '← Backlog' : '← Library'}
       </button>
 
       <div className="gd-hero">
@@ -295,64 +321,135 @@ export function GameDetails({
           </div>
         </div>
 
-        <div className="gd-hero-bar">
-          <div className="gd-stat">
-            <span className="gd-stat-icon">
-              <IconClock size={16} />
-            </span>
-            <div className="gd-stat-text">
-              <div className="gd-stat-val">
-                {game.playtimeKnown ? formatHours(game.totalPlaytimeMinutes) : '—'}
+        {backlog ? (
+          <div className="gd-hero-bar">
+            <div className="gd-stat">
+              <span className="gd-stat-icon">
+                <IconBacklog size={16} />
+              </span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">In backlog</div>
+                <div className="gd-stat-sub">status</div>
               </div>
-              <div className="gd-stat-sub">played</div>
+            </div>
+
+            <div className="gd-stat">
+              <span className={`gd-stat-icon ${priorityInfo(backlog.item.priority).cls}`}>▲</span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">{priorityInfo(backlog.item.priority).label}</div>
+                <div className="gd-stat-sub">priority</div>
+              </div>
+            </div>
+
+            <div className="gd-stat">
+              <span className="gd-stat-icon">
+                <IconClock size={16} />
+              </span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">{formatDate(backlog.item.createdAt)}</div>
+                <div className="gd-stat-sub">added</div>
+              </div>
             </div>
           </div>
-
-          <div className="gd-stat">
-            <span className={`gd-stat-icon ${platinum ? 'gd-stat-plat' : ''}`}>
-              {platinum ? <TrophyIcon type="platinum" size={17} /> : <IconTrophy size={16} />}
-            </span>
-            <div className="gd-stat-text">
-              <div className="gd-stat-val">{platinum ? 'Platinum' : 'Not platinum'}</div>
-              <div className="gd-stat-sub">trophy status</div>
+        ) : (
+          <div className="gd-hero-bar">
+            <div className="gd-stat">
+              <span className="gd-stat-icon">
+                <IconClock size={16} />
+              </span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">
+                  {game.playtimeKnown ? formatHours(game.totalPlaytimeMinutes) : '—'}
+                </div>
+                <div className="gd-stat-sub">played</div>
+              </div>
             </div>
-          </div>
 
-          <button
-            type="button"
-            className={`gd-stat gd-stat-btn ${beaten ? 'is-on' : ''}`}
-            onClick={toggleBeaten}
-            disabled={platinum}
-            title={platinum ? 'Platinum earned — always beaten' : 'Toggle beaten'}
-          >
-            <span className={`gd-stat-icon ${beaten ? 'gd-stat-beaten' : ''}`}>
-              {beaten ? '✓' : '○'}
-            </span>
-            <div className="gd-stat-text">
-              <div className="gd-stat-val">{beaten ? 'Beaten' : 'Not beaten'}</div>
-              <div className="gd-stat-sub">{platinum ? 'via platinum' : 'tap to toggle'}</div>
+            <div className="gd-stat">
+              <span className={`gd-stat-icon ${platinum ? 'gd-stat-plat' : ''}`}>
+                {platinum ? <TrophyIcon type="platinum" size={17} /> : <IconTrophy size={16} />}
+              </span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">{platinum ? 'Platinum' : 'Not platinum'}</div>
+                <div className="gd-stat-sub">trophy status</div>
+              </div>
             </div>
-          </button>
 
-          <div className="gd-stat gd-stat-rating">
-            <span className="gd-stat-icon gd-stat-star">★</span>
-            <div className="gd-stat-text">
-              <StarRating value={rating} onChange={rate} />
-              <div className="gd-stat-sub">your rating</div>
-            </div>
-          </div>
-
-          {game.manual ? (
-            <button className="gd-edit-btn" onClick={() => setEditing(true)}>
-              ✎ Edit hours
+            <button
+              type="button"
+              className={`gd-stat gd-stat-btn ${beaten ? 'is-on' : ''}`}
+              onClick={toggleBeaten}
+              disabled={platinum}
+              title={platinum ? 'Platinum earned — always beaten' : 'Toggle beaten'}
+            >
+              <span className={`gd-stat-icon ${beaten ? 'gd-stat-beaten' : ''}`}>
+                {beaten ? '✓' : '○'}
+              </span>
+              <div className="gd-stat-text">
+                <div className="gd-stat-val">{beaten ? 'Beaten' : 'Not beaten'}</div>
+                <div className="gd-stat-sub">{platinum ? 'via platinum' : 'tap to toggle'}</div>
+              </div>
             </button>
-          ) : null}
-        </div>
+
+            <div className="gd-stat gd-stat-rating">
+              <span className="gd-stat-icon gd-stat-star">★</span>
+              <div className="gd-stat-text">
+                <StarRating value={rating} onChange={rate} />
+                <div className="gd-stat-sub">your rating</div>
+              </div>
+            </div>
+
+            {game.manual ? (
+              <button className="gd-edit-btn" onClick={() => setEditing(true)}>
+                ✎ Edit hours
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
 
       <div className="gd-body">
         <div className="gd-main">
-          <section className="gd-card">
+          {backlog ? (
+            <section className="gd-card gd-backlog-card">
+              <h2 className="gd-card-title">
+                <IconBacklog size={16} /> Backlog
+              </h2>
+              <p className="gd-backlog-lead">
+                You haven't started this game yet. Set a priority, keep a note, or move it into your
+                library when you begin playing.
+              </p>
+
+              <div className="prio-block gd-backlog-prio">
+                <span className="rating-label">Priority</span>
+                <div className="prio-selector">
+                  {PRIORITIES.map((p) => (
+                    <button
+                      key={p.value}
+                      className={`prio-option ${p.cls} ${backlog.item.priority === p.value ? 'prio-active' : ''}`}
+                      onClick={() => backlog.onPriority(backlog.item.id, p.value)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {backlog.item.notes ? (
+                <p className="meta-desc gd-backlog-notes">{backlog.item.notes}</p>
+              ) : null}
+
+              <div className="gd-backlog-actions">
+                <button className="playing-btn" onClick={moveToPlaying} disabled={busy}>
+                  ▶ Move to currently playing
+                </button>
+                <button className="delete-btn" onClick={() => backlog.onDelete(backlog.item.id)}>
+                  Remove from backlog
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="gd-card">
             <div className="gd-trophy-head">
               <h2 className="gd-card-title gd-trophy-title">
                 <IconTrophy size={16} /> Trophies
@@ -459,10 +556,13 @@ export function GameDetails({
                 )}
               </div>
             )}
-          </section>
+            </section>
+          )}
         </div>
 
         <aside className="gd-side">
+          {backlog ? null : (
+            <>
           <section className="gd-card">
             <h2 className="gd-card-title">
               <IconChart size={15} /> My experience
@@ -508,6 +608,8 @@ export function GameDetails({
               )
             })}
           </section>
+            </>
+          )}
 
           {(() => {
             const g = meta.guide

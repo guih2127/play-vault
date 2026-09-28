@@ -80,6 +80,10 @@ export function Overview({
 
   const openGame = (g: AggregatedGame) => navigate(`/game/${encodeURIComponent(g.key)}`)
   const openByKey = (key: string) => navigate(`/game/${encodeURIComponent(key)}`)
+  // Own backlog opens the full details page; a read-only view keeps the modal (its /backlog/:id
+  // would resolve to the viewer's own item, not this profile's).
+  const openBacklog = (it: BacklogItem) =>
+    readOnly ? setSelBacklog(it) : navigate(`/backlog/${it.id}`)
 
   const bPriority = async (id: number, priority: number) => {
     setSelBacklog((s) => (s ? { ...s, priority } : s))
@@ -129,7 +133,7 @@ export function Overview({
           items={meta.backlogPreview}
           count={meta.backlogCount}
           onGoBacklog={onGoBacklog}
-          onOpenItem={setSelBacklog}
+          onOpenItem={openBacklog}
         />
       </div>
 
