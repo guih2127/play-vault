@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   addBacklogGame,
   deleteBacklogGame,
@@ -29,7 +30,7 @@ const PRIORITY_FILTER_OPTIONS: Array<[PriorityFilter, string]> = [
   ['0', 'Low'],
 ]
 
-const PRIORITIES: Array<{ value: number; label: string; cls: string }> = [
+export const PRIORITIES: Array<{ value: number; label: string; cls: string }> = [
   { value: 2, label: 'High', cls: 'prio-high' },
   { value: 1, label: 'Medium', cls: 'prio-mid' },
   { value: 0, label: 'Low', cls: 'prio-low' },
@@ -46,7 +47,7 @@ const PLATFORM_OPTIONS = [
   'Other',
 ]
 
-function priorityInfo(value: number) {
+export function priorityInfo(value: number) {
   return PRIORITIES.find((p) => p.value === value) ?? PRIORITIES[1]
 }
 
@@ -59,6 +60,7 @@ export function Backlog({
   userId?: number
   readOnly?: boolean
 }) {
+  const navigate = useNavigate()
   const [items, setItems] = useState<BacklogItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -110,6 +112,16 @@ export function Backlog({
     setSelectedId(null)
     setItems((prev) => prev.filter((it) => it.id !== id))
   }, [])
+
+  // Own backlog opens the full details page; a read-only view (someone else's profile) can't route
+  // to /backlog/:id (that resolves to the viewer's own item), so it keeps the lightweight modal.
+  const openItem = useCallback(
+    (id: number) => {
+      if (readOnly) setSelectedId(id)
+      else navigate(`/backlog/${id}`)
+    },
+    [readOnly, navigate],
+  )
 
   const platforms = useMemo(() => {
     const set = new Set<string>()
@@ -163,9 +175,9 @@ export function Backlog({
       <div className="library-meta">{filtered.length} games to play</div>
 
       {filtered.length ? (
-        <div className="grid">
+        <div className="bc-grid">
           {filtered.map((it) => (
-            <BacklogCard key={it.id} item={it} onOpen={setSelectedId} />
+            <BacklogCard key={it.id} item={it} onOpen={openItem} />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -195,25 +207,23 @@ export function Backlog({
 function BacklogCard({ item, onOpen }: { item: BacklogItem; onOpen: (id: number) => void }) {
   const prio = priorityInfo(item.priority)
   return (
-    <div className="card game" onClick={() => onOpen(item.id)}>
-      <div className="cover">
-        {item.coverUrl ? (
-          <img src={item.coverUrl} alt={item.title} loading="lazy" />
-        ) : (
-          <div className="cover-fallback">{item.title.slice(0, 1)}</div>
-        )}
-        <div className="badges badges-left">
-          <PlatformBadge label={item.platform} />
+    <div className="bc-tile bc-card" title={item.title} onClick={() => onOpen(item.id)}>
+      {item.coverUrl ? (
+        <img className="bc-cover" src={item.coverUrl} alt={item.title} loading="lazy" />
+      ) : (
+        <div className="bc-cover bc-cover-empty">{item.title.slice(0, 1)}</div>
+      )}
+      <div className="bc-card-body">
+        <div className="bc-title">{item.title}</div>
+        <div className="bc-meta">
+          <span className="bc-platforms">
+            <PlatformBadge label={item.platform} />
+          </span>
+          <span className={`prio-bar-tag ${prio.cls}`}>
+            <span className="prio-bar" />
+            {prio.label}
+          </span>
         </div>
-        <div className="badges badges-bottom">
-          <span className={`prio-tag ${prio.cls}`}>{prio.label}</span>
-        </div>
-      </div>
-      <div className="game-info">
-        <div className="game-title" title={item.title}>
-          {item.title}
-        </div>
-        <div className="game-meta">Added {formatDate(item.createdAt)}</div>
       </div>
     </div>
   )
