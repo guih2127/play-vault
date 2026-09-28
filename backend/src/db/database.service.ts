@@ -112,6 +112,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
   private pool!: Pool;
 
+  // Per-user in-memory cache of the two large blobs — the latest snapshot payload and the
+  // concatenated trophy store. Both only change on sync, yet every dashboard/library/trophies
+  // request re-reads them from Postgres; across a browsing session that is the dominant source of
+  // Neon egress. Caching collapses those repeat reads to one per sync. Writes to either blob
+  // (saveSnapshot / upsertTitleTrophies) evict the owning user's entry. Cached values are handed
+  // out by reference and MUST be treated as read-only by callers (they map/filter/copy today).
+  // Single-instance only: if the app is ever scaled horizontally, an entry can go stale on the
+  // instances that didn't handle the sync — move to a shared cache (or short TTL) at that point.
+  private readonly snapshotCache = new Map<number, StoredSnapshot<unknown> | null>();
+  private readonly trophyCache = new Map<number, unknown[]>();
+
   /** `poolOverride` lets tests inject an in-memory (pg-mem) pool. Nest calls this with no args. */
   async onModuleInit(poolOverride?: Pool): Promise<void> {
     // Already initialized (e.g. a test injected a pool before Nest ran the lifecycle hook).
@@ -435,6 +446,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       createdAt,
       JSON.stringify(data),
     ]);
+    this.snapshotCache.delete(userId);
   }
 
   /** Map of title id -> lastUpdatedDateTime already stored, for incremental sync diffing. */
@@ -457,9 +469,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
        ON CONFLICT (user_id, np_comm_id) DO UPDATE SET last_updated = EXCLUDED.last_updated, data = EXCLUDED.data, fetched_at = EXCLUDED.fetched_at`,
       [userId, npCommId, lastUpdated ?? null, JSON.stringify(trophies), new Date().toISOString()],
     );
+    this.trophyCache.delete(userId);
   }
 
   async getAllStoredTrophies<T>(userId: number): Promise<T[]> {
+    const cached = this.trophyCache.get(userId);
+    if (cached) return cached as T[];
     const res = await this.pool.query('SELECT data FROM title_trophies WHERE user_id = $1', [userId]);
     const out: T[] = [];
     for (const r of res.rows) {
@@ -470,16 +485,23 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         // skip malformed rows
       }
     }
+    this.trophyCache.set(userId, out as unknown[]);
     return out;
   }
 
   async getLatestSnapshot<T>(userId: number): Promise<StoredSnapshot<T> | null> {
+    if (this.snapshotCache.has(userId)) {
+      return this.snapshotCache.get(userId) as StoredSnapshot<T> | null;
+    }
     const res = await this.pool.query(
       'SELECT id, created_at, data FROM snapshot WHERE user_id = $1 ORDER BY id DESC LIMIT 1',
       [userId],
     );
     const row = res.rows[0];
-    if (!row) return null;
-    return { id: Number(row.id), createdAt: row.created_at, data: JSON.parse(row.data) as T };
+    const snap = row
+      ? { id: Number(row.id), createdAt: row.created_at as string, data: JSON.parse(row.data) as T }
+      : null;
+    this.snapshotCache.set(userId, snap as StoredSnapshot<unknown> | null);
+    return snap;
   }
 }
